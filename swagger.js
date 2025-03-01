@@ -11,7 +11,11 @@ const options = {
     servers: [
       {
         url: `http://localhost:${process.env.PORT || 3000}`,
-        description: 'Local server',
+        description: 'Local Development Server',
+      },
+      {
+        url: 'https://agentic-ai-be.onrender.com',
+        description: 'Production Server',
       },
     ],
   },

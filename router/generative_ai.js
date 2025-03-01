@@ -23,10 +23,13 @@ router.get("/api/questionary", questionary)
  *   schemas:
  *     Message:
  *       type: object
+ *       required:
+ *         - role
+ *         - content
  *       properties:
  *         role:
  *           type: string
- *           enum: [system, user, assistant]
+ *           enum: [system, user]
  *           description: The role of the message sender
  *         content:
  *           type: string
@@ -42,11 +45,10 @@ router.get("/api/questionary", questionary)
  *         application/json:
  *           schema:
  *             type: object
+ *             required:
+ *               - messages
+ *               - stream
  *             properties:
- *               model:
- *                 type: string
- *                 default: gpt-3.5-turbo
- *                 description: The OpenAI model to use
  *               messages:
  *                 type: array
  *                 items:
@@ -61,42 +63,6 @@ router.get("/api/questionary", questionary)
  *                 type: boolean
  *                 default: true
  *                 description: Whether to stream the response
- *               temperature:
- *                 type: number
- *                 format: float
- *                 minimum: 0
- *                 maximum: 2
- *                 description: Controls randomness in the response
- *               top_p:
- *                 type: number
- *                 format: float
- *                 minimum: 0
- *                 maximum: 1
- *                 description: Controls diversity via nucleus sampling
- *               max_tokens:
- *                 type: integer
- *                 minimum: 1
- *                 description: Maximum number of tokens to generate
- *               presence_penalty:
- *                 type: number
- *                 format: float
- *                 minimum: -2
- *                 maximum: 2
- *                 description: Penalty for new tokens
- *               frequency_penalty:
- *                 type: number
- *                 format: float
- *                 minimum: -2
- *                 maximum: 2
- *                 description: Penalty for frequent tokens
- *               logit_bias:
- *                 type: object
- *                 additionalProperties:
- *                   type: number
- *                 description: Modify likelihood of specific tokens appearing
- *               user:
- *                 type: string
- *                 description: Unique identifier for the end-user
  *     responses:
  *       200:
  *         description: Successfully processed message
