@@ -12,7 +12,7 @@ const openai = new OpenAI({
 const message = async (req, res) => {
     try {
         const {
-            model = "gpt-3.5-turbo",
+            model = "gpt-4o",
             messages,
             stream = true,
             temperature,
