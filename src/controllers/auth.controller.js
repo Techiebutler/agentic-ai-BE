@@ -3,6 +3,9 @@ const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 const db = require('../models');
 const { registerSchema, loginSchema, verifyOtpSchema } = require('../validations/auth.validation');
+const authService = require('../services/auth.service');
+const path = require('path');
+const ejs = require('ejs');
 
 const User = db.users;
 const Role = db.roles;
@@ -38,6 +41,10 @@ const register = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
     const defaultRole = await Role.findOne({ where: { name: 'user' } });
 
+    const otp = generateOTP();
+    const otpExpiry = new Date();
+    otpExpiry.setMinutes(otpExpiry.getMinutes() + 5);
+
     const user = await User.create({
       firstName,
       lastName,
@@ -46,11 +53,20 @@ const register = async (req, res) => {
       gender,
       roleId: roleId || defaultRole.id,
       status: 1,
+      verificationOtp: otp,
+      otpExpiry,
       createdBy: null
     });
 
+    await transporter.sendMail({
+      from: process.env.SMTP_USER,
+      to: user.email,
+      subject: 'Email Verification',
+      text: `Your email verification OTP is: ${otp}. This OTP will expire in 5 minutes.`
+    });
+
     res.status(201).json({
-      message: 'User registered successfully',
+      message: 'User registered successfully. Please check your email for verification OTP.',
       user: {
         id: user.id,
         email: user.email,
@@ -87,74 +103,20 @@ const login = async (req, res) => {
       return res.status(403).json({ message: 'Account is inactive or blocked' });
     }
 
+    if (!user.isEmailVerified) {
+      return res.status(403).json({ message: 'Please verify your email before logging in' });
+    }
+
     const validPassword = await bcrypt.compare(password, user.password);
     if (!validPassword) {
       return res.status(401).json({ message: 'Invalid email or password' });
     }
 
-    const otp = generateOTP();
-    const otpExpiry = new Date();
-    otpExpiry.setMinutes(otpExpiry.getMinutes() + 5);
-
-    await user.update({
-      loginOtp: otp,
-      otpExpiry
-    });
-
-    await transporter.sendMail({
-      from: process.env.SMTP_USER,
-      to: user.email,
-      subject: 'Login OTP',
-      text: `Your OTP for login is: ${otp}. This OTP will expire in 5 minutes.`
-    });
-
-    res.json({ message: 'OTP sent to your email' });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-const verifyOtp = async (req, res) => {
-  try {
-    const { error } = verifyOtpSchema.validate(req.body);
-    if (error) {
-      return res.status(400).json({ message: error.details[0].message });
-    }
-
-    const { email, otp } = req.body;
-    const user = await User.findOne({
-      where: { email },
-      include: [{
-        model: Role,
-        attributes: ['name']
-      }]
-    });
-
-    if (!user) {
-      return res.status(401).json({ message: 'User not found' });
-    }
-
-    if (user.loginOtp !== otp) {
-      return res.status(401).json({ message: 'Invalid OTP' });
-    }
-
-    if (new Date() > user.otpExpiry) {
-      return res.status(401).json({ message: 'OTP has expired' });
-    }
-
-    const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role.name },
-      process.env.JWT_SECRET,
-      { expiresIn: '24h' }
-    );
-
-    await user.update({
-      loginOtp: null,
-      otpExpiry: null
-    });
+    const { accessToken, refreshToken } = await authService.generateTokens(user);
 
     res.json({
-      token,
+      accessToken,
+      refreshToken,
       user: {
         id: user.id,
         email: user.email,
@@ -168,8 +130,167 @@ const verifyOtp = async (req, res) => {
   }
 };
 
+const verifyEmail = async (req, res) => {
+  try {
+    const { error } = verifyOtpSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({ message: error.details[0].message });
+    }
+
+    const { email, otp } = req.body;
+    const user = await User.findOne({ where: { email } });
+
+    if (!user) {
+      return res.status(401).json({ message: 'User not found' });
+    }
+
+    if (user.verificationOtp !== otp) {
+      return res.status(401).json({ message: 'Invalid OTP' });
+    }
+
+    if (new Date() > user.otpExpiry) {
+      return res.status(401).json({ message: 'OTP has expired' });
+    }
+
+    await user.update({
+      isEmailVerified: true,
+      verificationOtp: null,
+      otpExpiry: null
+    });
+
+    res.json({ message: 'Email verified successfully' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const resendVerificationOtp = async (req, res) => {
+  try {
+    const { email } = req.body;
+    const user = await User.findOne({ where: { email } });
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    if (user.isEmailVerified) {
+      return res.status(400).json({ message: 'Email is already verified' });
+    }
+
+    const otp = generateOTP();
+    const otpExpiry = new Date();
+    otpExpiry.setMinutes(otpExpiry.getMinutes() + 5);
+
+    await user.update({
+      verificationOtp: otp,
+      otpExpiry
+    });
+
+    await transporter.sendMail({
+      from: process.env.SMTP_USER,
+      to: user.email,
+      subject: 'Email Verification',
+      text: `Your email verification OTP is: ${otp}. This OTP will expire in 5 minutes.`
+    });
+
+    res.json({ message: 'Verification OTP sent successfully' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const refreshToken = async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+    if (!refreshToken) {
+      return res.status(400).json({ message: 'Refresh token is required' });
+    }
+
+    const userData = await authService.verifyRefreshToken(refreshToken);
+    const user = await User.findByPk(userData.id);
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const accessToken = authService.generateAccessToken(user);
+    res.json({ accessToken });
+  } catch (error) {
+    res.status(401).json({ message: error.message });
+  }
+};
+
+const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    const user = await User.findOne({ where: { email } });
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const token = await authService.generateForgotPasswordToken(user);
+    const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
+
+    // Render the email template
+    const emailHtml = await ejs.renderFile(
+      path.join(__dirname, '../templates/reset-password.ejs'),
+      { resetLink }
+    );
+
+    await transporter.sendMail({
+      from: process.env.SMTP_USER,
+      to: user.email,
+      subject: 'Reset Your Password',
+      html: emailHtml
+    });
+
+    res.json({ message: 'Password reset link sent to your email' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const resetPassword = async (req, res) => {
+  try {
+    const { token, newPassword } = req.body;
+    
+    const decoded = await authService.verifyForgotPasswordToken(token);
+    const user = await User.findByPk(decoded.id);
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await user.update({ password: hashedPassword });
+
+    // Generate new tokens after password reset
+    const { accessToken, refreshToken } = await authService.generateTokens(user);
+
+    res.json({
+      message: 'Password reset successful',
+      accessToken,
+      refreshToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role.name
+      }
+    });
+  } catch (error) {
+    res.status(401).json({ message: error.message });
+  }
+};
+
 module.exports = {
   register,
   login,
-  verifyOtp
+  verifyEmail,
+  resendVerificationOtp,
+  refreshToken,
+  forgotPassword,
+  resetPassword
 };

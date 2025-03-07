@@ -22,7 +22,6 @@ const sequelize = new Sequelize(
       },
     },
   },
-  
 );
 
 const db = {};
@@ -31,9 +30,17 @@ db.Sequelize = Sequelize;
 
 db.users = require('./user.model')(sequelize, Sequelize);
 db.roles = require('./role.model')(sequelize, Sequelize);
+db.tokens = require('./token.model')(sequelize, Sequelize);
+db.projects = require('./project.model')(sequelize, Sequelize);
 
 // Define relationships
 db.roles.hasMany(db.users);
 db.users.belongsTo(db.roles);
+
+db.users.hasMany(db.tokens, { foreignKey: 'userId' });
+db.tokens.belongsTo(db.users, { foreignKey: 'userId' });
+
+db.users.hasMany(db.projects, { foreignKey: 'userId' });
+db.projects.belongsTo(db.users, { foreignKey: 'userId' });
 
 module.exports = db;

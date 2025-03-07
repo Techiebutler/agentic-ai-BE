@@ -1,8 +1,8 @@
 module.exports = (sequelize, Sequelize) => {
   const User = sequelize.define('user', {
     id: {
-      type: Sequelize.UUID,
-      defaultValue: Sequelize.UUIDV4,
+      type: Sequelize.INTEGER,
+      autoIncrement: true,
       primaryKey: true
     },
     firstName: {
@@ -16,10 +16,7 @@ module.exports = (sequelize, Sequelize) => {
     email: {
       type: Sequelize.STRING,
       allowNull: false,
-      unique: true,
-      validate: {
-        isEmail: true
-      }
+      unique: true
     },
     password: {
       type: Sequelize.STRING,
@@ -37,17 +34,29 @@ module.exports = (sequelize, Sequelize) => {
       type: Sequelize.DATE,
       allowNull: true
     },
+    isEmailVerified: {
+      type: Sequelize.BOOLEAN,
+      defaultValue: false
+    },
+    verificationOtp: {
+      type: Sequelize.STRING,
+      allowNull: true
+    },
+    roleId: {
+      type: Sequelize.INTEGER,
+      allowNull: false
+    },
     status: {
       type: Sequelize.INTEGER,
       defaultValue: 1, // 1: active, 0: inactive, 2: blocked
       allowNull: false
     },
     createdBy: {
-      type: Sequelize.UUID,
+      type: Sequelize.INTEGER,
       allowNull: true
     },
     updatedBy: {
-      type: Sequelize.UUID,
+      type: Sequelize.INTEGER,
       allowNull: true
     }
   }, {

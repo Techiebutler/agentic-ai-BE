@@ -1,12 +1,12 @@
 module.exports = (sequelize, Sequelize) => {
   const Role = sequelize.define('role', {
     id: {
-      type: Sequelize.UUID,
-      defaultValue: Sequelize.UUIDV4,
+      type: Sequelize.INTEGER,
+      autoIncrement: true,
       primaryKey: true
     },
     name: {
-      type: Sequelize.ENUM('user', 'super_admin'),
+      type: Sequelize.STRING,
       allowNull: false,
       unique: true
     },
@@ -16,11 +16,11 @@ module.exports = (sequelize, Sequelize) => {
       allowNull: false
     },
     createdBy: {
-      type: Sequelize.UUID,
+      type: Sequelize.INTEGER,
       allowNull: true
     },
     updatedBy: {
-      type: Sequelize.UUID,
+      type: Sequelize.INTEGER,
       allowNull: true
     }
   }, {
