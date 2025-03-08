@@ -26,10 +26,6 @@ module.exports = (sequelize, Sequelize) => {
       type: Sequelize.ENUM('male', 'female', 'other'),
       allowNull: false
     },
-    loginOtp: {
-      type: Sequelize.STRING,
-      allowNull: true
-    },
     otpExpiry: {
       type: Sequelize.DATE,
       allowNull: true

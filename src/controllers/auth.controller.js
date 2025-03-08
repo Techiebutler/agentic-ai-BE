@@ -10,14 +10,17 @@ const ejs = require('ejs');
 const User = db.users;
 const Role = db.roles;
 
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: process.env.SMTP_PORT,
-  secure: false,
+console.log("process.env.SMTP_HOST",process.env.SMTP_HOST);
+console.log("process.env.SMTP_PORT",process.env.SMTP_PORT);
+console.log("process.env.SMTP_USER",process.env.SMTP_USER);
+console.log("process.env.SMTP_PASS",process.env.SMTP_PASS);
+
+let transporter = nodemailer.createTransport({
+  service: process.env.SMTP_HOST,
   auth: {
     user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS
-  }
+    pass: process.env.SMTP_PASS,
+  },
 });
 
 const generateOTP = () => {
@@ -43,7 +46,7 @@ const register = async (req, res) => {
 
     const otp = generateOTP();
     const otpExpiry = new Date();
-    otpExpiry.setMinutes(otpExpiry.getMinutes() + 5);
+    otpExpiry.setMinutes(otpExpiry.getMinutes() + 60);
 
     const user = await User.create({
       firstName,
@@ -60,10 +63,11 @@ const register = async (req, res) => {
 
     await transporter.sendMail({
       from: process.env.SMTP_USER,
-      to: user.email,
+      to: email,
       subject: 'Email Verification',
-      text: `Your email verification OTP is: ${otp}. This OTP will expire in 5 minutes.`
+      text: `Your email verification OTP is: ${otp}. This OTP will expire in 60 minutes.`
     });
+    console.log("mail sent");
 
     res.status(201).json({
       message: 'User registered successfully. Please check your email for verification OTP.',
@@ -126,6 +130,7 @@ const login = async (req, res) => {
       }
     });
   } catch (error) {
+    console.log("error",error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -179,7 +184,7 @@ const resendVerificationOtp = async (req, res) => {
 
     const otp = generateOTP();
     const otpExpiry = new Date();
-    otpExpiry.setMinutes(otpExpiry.getMinutes() + 5);
+    otpExpiry.setMinutes(otpExpiry.getMinutes() + 60);
 
     await user.update({
       verificationOtp: otp,
@@ -190,7 +195,7 @@ const resendVerificationOtp = async (req, res) => {
       from: process.env.SMTP_USER,
       to: user.email,
       subject: 'Email Verification',
-      text: `Your email verification OTP is: ${otp}. This OTP will expire in 5 minutes.`
+      text: `Your email verification OTP is: ${otp}. This OTP will expire in 60 minutes.`
     });
 
     res.json({ message: 'Verification OTP sent successfully' });
@@ -201,12 +206,12 @@ const resendVerificationOtp = async (req, res) => {
 
 const refreshToken = async (req, res) => {
   try {
-    const { refreshToken } = req.body;
-    if (!refreshToken) {
+    const { token } = req.body;
+    if (!token) {
       return res.status(400).json({ message: 'Refresh token is required' });
     }
 
-    const userData = await authService.verifyRefreshToken(refreshToken);
+    const userData = await authService.verifyRefreshToken(token);
     const user = await User.findByPk(userData.id);
     
     if (!user) {
@@ -254,9 +259,16 @@ const forgotPassword = async (req, res) => {
 const resetPassword = async (req, res) => {
   try {
     const { token, newPassword } = req.body;
+    console.log("token",token);
     
     const decoded = await authService.verifyForgotPasswordToken(token);
-    const user = await User.findByPk(decoded.id);
+    const user = await User.findOne({
+      where: { id: decoded.id },
+      include: [{
+        model: Role,
+        attributes: ['name']
+      }]
+    });
 
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
@@ -264,6 +276,7 @@ const resetPassword = async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     await user.update({ password: hashedPassword });
+    console.log("Password reset successful");
 
     // Generate new tokens after password reset
     const { accessToken, refreshToken } = await authService.generateTokens(user);
@@ -277,10 +290,11 @@ const resetPassword = async (req, res) => {
         email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
-        role: user.role.name
+        roleId: user.role.name
       }
     });
   } catch (error) {
+    console.log("error",error);
     res.status(401).json({ message: error.message });
   }
 };

@@ -122,7 +122,6 @@ The API will be available at `http://localhost:3000` and Swagger documentation a
 - `email` (String, Unique)
 - `password` (String, Hashed)
 - `gender` (Enum: male, female, other)
-- `loginOtp` (String)
 - `otpExpiry` (DateTime)
 - `status` (Integer)
 - `roleId` (UUID, Foreign Key)

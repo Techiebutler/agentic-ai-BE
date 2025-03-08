@@ -8,7 +8,7 @@ const registerSchema = Joi.object({
     .pattern(new RegExp('^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,}$'))
     .message('Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character'),
   gender: Joi.string().valid('male', 'female', 'other').required(),
-  roleId: Joi.string().uuid()
+  roleId: Joi.number().optional()
 });
 
 const loginSchema = Joi.object({

@@ -60,7 +60,7 @@ const router = express.Router();
  *       400:
  *         description: Validation error
  */
-router.post('/project/create', verifyToken, createProject);
+router.post('/create', verifyToken, createProject);
 
 /**
  * @swagger
@@ -130,7 +130,7 @@ router.post('/project/create', verifyToken, createProject);
  *                     hasPreviousPage:
  *                       type: boolean
  */
-router.get('/project/list', verifyToken, getUserProjects);
+router.get('/list', verifyToken, getUserProjects);
 
 /**
  * @swagger
@@ -173,7 +173,7 @@ router.get('/project/list', verifyToken, getUserProjects);
  *                         email:
  *                           type: string
  */
-router.get('/project/detail/:project_id', verifyToken, getProjectDetails);
+router.get('/detail/:project_id', verifyToken, getProjectDetails);
 
 /**
  * @swagger
@@ -229,7 +229,7 @@ router.get('/project/detail/:project_id', verifyToken, getProjectDetails);
  *       400:
  *         description: Validation error
  */
-router.put('/project/update/:project_id', verifyToken, updateProject);
+router.put('/update/:project_id', verifyToken, updateProject);
 
 /**
  * @swagger
@@ -249,6 +249,6 @@ router.put('/project/update/:project_id', verifyToken, updateProject);
  *       200:
  *         description: Project deleted successfully
  */
-router.delete('/project/delete/:project_id', verifyToken, deleteProject);
+router.delete('/delete/:project_id', verifyToken, deleteProject);
 
 module.exports = router;

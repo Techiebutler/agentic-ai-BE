@@ -11,7 +11,7 @@ const generateTokens = async (user) => {
   };
 
   const accessToken = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '60m' });
-  const refreshToken = jwt.sign(payload, process.env.JWT_REFRESH_SECRET, { expiresIn: '7d' });
+  const refreshToken = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
 
   // Store refresh token
   await Token.create({
@@ -25,7 +25,8 @@ const generateTokens = async (user) => {
 
 const verifyRefreshToken = async (refreshToken) => {
   try {
-    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+    const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET);
+    
     const token = await Token.findOne({ 
       where: { 
         userId: decoded.id, 

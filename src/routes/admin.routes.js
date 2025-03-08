@@ -73,7 +73,7 @@ const router = express.Router();
  *       403:
  *         description: Access denied. Admin privileges required.
  */
-router.get('/admin/user/list', verifyToken, isAdmin, getUsersList);
+router.get('/user/list', verifyToken, isAdmin, getUsersList);
 
 /**
  * @swagger
@@ -150,7 +150,7 @@ router.get('/admin/user/list', verifyToken, isAdmin, getUsersList);
  *       403:
  *         description: Access denied. Admin privileges required.
  */
-router.get('/admin/project/list/:user_id', verifyToken, isAdmin, getUserProjectsByAdmin);
+router.get('/project/list/:user_id', verifyToken, isAdmin, getUserProjectsByAdmin);
 
 /**
  * @swagger
@@ -195,7 +195,7 @@ router.get('/admin/project/list/:user_id', verifyToken, isAdmin, getUserProjects
  *       403:
  *         description: Access denied. Admin privileges required.
  */
-router.get('/admin/project/detail/:project_id', verifyToken, isAdmin, getProjectDetailsByAdmin);
+router.get('/project/detail/:project_id', verifyToken, isAdmin, getProjectDetailsByAdmin);
 
 /**
  * @swagger
@@ -253,7 +253,7 @@ router.get('/admin/project/detail/:project_id', verifyToken, isAdmin, getProject
  *       403:
  *         description: Access denied. Admin privileges required.
  */
-router.put('/admin/project/update/:project_id', verifyToken, isAdmin, updateProjectByAdmin);
+router.put('/project/update/:project_id', verifyToken, isAdmin, updateProjectByAdmin);
 
 /**
  * @swagger
@@ -275,6 +275,6 @@ router.put('/admin/project/update/:project_id', verifyToken, isAdmin, updateProj
  *       403:
  *         description: Access denied. Admin privileges required.
  */
-router.delete('/admin/project/delete/:project_id', verifyToken, isAdmin, deleteProjectByAdmin);
+router.delete('/project/delete/:project_id', verifyToken, isAdmin, deleteProjectByAdmin);
 
 module.exports = router;

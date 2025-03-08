@@ -117,7 +117,7 @@ const getUserProjects = async (req, res) => {
       },
       include: [{
         model: User,
-        attributes: { exclude: ['password', 'verificationOtp', 'otpExpiry'] }
+        attributes: { exclude: ['password', 'otpExpiry','isEmailVerified','verificationOtp'] }
       }],
       order: [['created_at', 'DESC']],
       limit,
@@ -183,7 +183,6 @@ const getUsersList = async (req, res) => {
       },
       include: [{
         model: Role,
-        where: { name: 'user' },
         attributes: ['name']
       }],
       attributes: { exclude: ['password', 'verificationOtp', 'otpExpiry'] },
