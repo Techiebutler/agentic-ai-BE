@@ -22,12 +22,12 @@ module.exports = (sequelize, Sequelize) => {
       }
     },
     answerText: {
-      type: Sequelize.ARRAY(Sequelize.TEXT),
-      allowNull: true,
+      type: Sequelize.TEXT,
+      allowNull: true
     },
     selectedOptionIds: {
       type: Sequelize.ARRAY(Sequelize.INTEGER),
-      allowNull: true,
+      allowNull: true
     },
     status: {
       type: Sequelize.INTEGER,

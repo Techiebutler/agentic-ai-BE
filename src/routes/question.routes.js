@@ -13,7 +13,8 @@ const {
   deleteOption,
   addOption,
   getAllTitles,
-  getAllQuestions
+  getAllQuestions,
+  updateAnswer
 } = require('../controllers/question.controller');
 
 const router = express.Router();
@@ -265,10 +266,11 @@ router.post('/admin/question/create', verifyToken, isAdmin, createQuestion);
 
 /**
  * @swagger
- * /api/question/submit-answer:
+ * /api/user/answer/submit:
  *   post:
- *     tags: [Questions]
- *     summary: Submit or update an answer to a question
+ *     tags: [User]
+ *     summary: Submit or update an answer
+ *     description: Submit a new answer or update existing answer for a question
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -279,28 +281,108 @@ router.post('/admin/question/create', verifyToken, isAdmin, createQuestion);
  *             type: object
  *             required:
  *               - questionId
- *               - answer
  *             properties:
  *               questionId:
  *                 type: integer
- *               answer:
+ *                 minimum: 1
+ *                 description: ID of the question to answer
+ *                 example: 1
+ *               answerText:
  *                 type: string
- *                 minLength: 1
- *                 maxLength: 1000
+ *                 description: Text answer for text-type questions
+ *                 example: "My answer text"
+ *               selectedOptionIds:
+ *                 type: array
+ *                 items:
+ *                   type: integer
+ *                 description: Array of selected option IDs for radio/select/checkbox questions
+ *                 example: [1, 2]
+ *             oneOf:
+ *               - required: [questionId, answerText]
+ *               - required: [questionId, selectedOptionIds]
  *     responses:
+ *       200:
+ *         description: Answer updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Answer updated successfully"
+ *                 answer:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *                       example: 1
+ *                     questionId:
+ *                       type: integer
+ *                       example: 1
+ *                     answerText:
+ *                       type: string
+ *                       nullable: true
+ *                       example: "My answer text"
+ *                     selectedOptionIds:
+ *                       type: array
+ *                       items:
+ *                         type: integer
+ *                       nullable: true
+ *                       example: [1, 2]
  *       201:
  *         description: Answer submitted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Answer submitted successfully"
+ *                 answer:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *                       example: 1
+ *                     questionId:
+ *                       type: integer
+ *                       example: 1
+ *                     answerText:
+ *                       type: string
+ *                       nullable: true
+ *                       example: "My answer text"
+ *                     selectedOptionIds:
+ *                       type: array
+ *                       items:
+ *                         type: integer
+ *                       nullable: true
+ *                       example: [1, 2]
+ *       400:
+ *         description: Invalid input or validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Either answerText or selectedOptionIds must be provided"
+ *       403:
+ *         description: Access denied
  *       404:
  *         description: Question not found
  */
-router.post('/question/submit-answer', verifyToken, submitAnswer);
+router.post('/user/answer/submit', verifyToken, submitAnswer);
 
 /**
  * @swagger
- * /api/questions/{titleId}/answers:
+ * /api/user/answers/{titleId}:
  *   get:
- *     tags: [Questions]
- *     summary: Get user's answers for a specific title
+ *     tags: [User]
+ *     summary: Get user's answers for a title
+ *     description: Get all answers submitted by the user for questions in a title
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -309,27 +391,98 @@ router.post('/question/submit-answer', verifyToken, submitAnswer);
  *         required: true
  *         schema:
  *           type: integer
+ *         description: ID of the title
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: size
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 10
+ *         description: Items per page
  *     responses:
  *       200:
- *         description: User's answers retrieved successfully
+ *         description: User answers retrieved successfully
  *         content:
  *           application/json:
  *             schema:
  *               type: object
  *               properties:
- *                 answers:
+ *                 message:
+ *                   type: string
+ *                   example: "User answers retrieved successfully"
+ *                 data:
  *                   type: array
  *                   items:
  *                     type: object
  *                     properties:
- *                       questionId:
+ *                       titleId:
  *                         type: integer
- *                       answer:
+ *                         example: 1
+ *                       titleName:
  *                         type: string
+ *                         example: "Health Survey"
+ *                       groups:
+ *                         type: array
+ *                         items:
+ *                           type: object
+ *                           properties:
+ *                             id:
+ *                               type: integer
+ *                               example: 1
+ *                             name:
+ *                               type: string
+ *                               example: "Basic Information"
+ *                             questions:
+ *                               type: array
+ *                               items:
+ *                                 type: object
+ *                                 properties:
+ *                                   questionId:
+ *                                     type: integer
+ *                                     example: 1
+ *                                   questionText:
+ *                                     type: string
+ *                                     example: "What is your weight?"
+ *                                   questionType:
+ *                                     type: string
+ *                                     enum: [text, radio, select, checkbox]
+ *                                     example: "text"
+ *                                   answer:
+ *                                     oneOf:
+ *                                       - type: string
+ *                                         example: "70 kg"
+ *                                       - type: array
+ *                                         items:
+ *                                           type: integer
+ *                                         example: [1, 2]
+ *                                   options:
+ *                                     type: array
+ *                                     items:
+ *                                       type: object
+ *                                       properties:
+ *                                         id:
+ *                                           type: integer
+ *                                           example: 1
+ *                                         optionText:
+ *                                           type: string
+ *                                           example: "50-60 kg"
+ *                                         isSelected:
+ *                                           type: boolean
+ *                                           example: true
+ *       403:
+ *         description: Access denied
  *       404:
  *         description: Title not found
  */
-router.get('/questions/:titleId/answers', verifyToken, getUserAnswers);
+router.get('/user/answers/:titleId', verifyToken, getUserAnswers);
 
 /**
  * @swagger
@@ -733,5 +886,88 @@ router.get('/admin/titles', verifyToken, isAdmin, getAllTitles);
  *         description: Access denied. Admin privileges required.
  */
 router.get('/admin/questions', verifyToken, isAdmin, getAllQuestions);
+
+/**
+ * @swagger
+ * /api/user/answer/update:
+ *   put:
+ *     tags: [User]
+ *     summary: Update an existing answer
+ *     description: Update a previously submitted answer. Users can only update their own answers.
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - answerId
+ *             properties:
+ *               answerId:
+ *                 type: integer
+ *                 minimum: 1
+ *                 description: ID of the answer to update
+ *                 example: 1
+ *               answerText:
+ *                 type: string
+ *                 description: New text answer for text-type questions
+ *                 example: "Updated answer text"
+ *               selectedOptionIds:
+ *                 type: array
+ *                 items:
+ *                   type: integer
+ *                 description: New array of selected option IDs for radio/select/checkbox questions
+ *                 example: [2, 3]
+ *             oneOf:
+ *               - required: [answerId, answerText]
+ *               - required: [answerId, selectedOptionIds]
+ *     responses:
+ *       200:
+ *         description: Answer updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Answer updated successfully"
+ *                 answer:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *                       example: 1
+ *                     questionId:
+ *                       type: integer
+ *                       example: 1
+ *                     answerText:
+ *                       type: string
+ *                       nullable: true
+ *                       example: "Updated answer text"
+ *                     selectedOptionIds:
+ *                       type: array
+ *                       items:
+ *                         type: integer
+ *                       nullable: true
+ *                       example: [2, 3]
+ *       400:
+ *         description: Invalid input or validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Either answerText or selectedOptionIds must be provided"
+ *       403:
+ *         description: Access denied or attempting to update another user's answer
+ *       404:
+ *         description: Answer not found
+ */
+router.put('/user/answer/update', verifyToken, updateAnswer);
 
 module.exports = router;

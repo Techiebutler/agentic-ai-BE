@@ -115,23 +115,34 @@ const deleteOptionSchema = Joi.object({
 });
 
 const submitAnswerSchema = Joi.object({
-  questionId: Joi.number().required().integer().positive()
+  questionId: Joi.number().integer().required().min(1)
     .messages({
       'number.base': 'Question ID must be a number',
-      'number.positive': 'Question ID must be positive'
+      'number.integer': 'Question ID must be an integer',
+      'number.min': 'Question ID must be at least 1'
     }),
-  answerText: Joi.array().items(Joi.string().allow('')).allow(null)
+  answerText: Joi.string().trim().min(1).max(500)
     .messages({
-      'array.base': 'Answer text must be an array'
+      'string.empty': 'Answer text is required',
+      'string.min': 'Answer text must be at least 1 character',
+      'string.max': 'Answer text cannot exceed 500 characters'
     }),
-  selectedOptionIds: Joi.array().items(Joi.number().integer().positive()).allow(null)
+  selectedOptionIds: Joi.array().items(Joi.number().integer().min(1))
     .messages({
-      'array.base': 'Selected options must be an array of numbers'
+      'array.base': 'Selected options must be an array',
+      'number.base': 'Option ID must be a number',
+      'number.integer': 'Option ID must be an integer',
+      'number.min': 'Option ID must be at least 1'
     })
 }).custom((value, helpers) => {
   if (!value.answerText && !value.selectedOptionIds) {
-    return helpers.error('custom.eitherTextOrOptions', {
-      message: 'Either answer text or selected options must be provided'
+    return helpers.error('object.missing', {
+      message: 'Either answerText or selectedOptionIds must be provided'
+    });
+  }
+  if (value.answerText && value.selectedOptionIds) {
+    return helpers.error('object.xor', {
+      message: 'Cannot provide both answerText and selectedOptionIds'
     });
   }
   return value;
@@ -152,6 +163,40 @@ const addOptionSchema = Joi.object({
     })
 });
 
+const updateAnswerSchema = Joi.object({
+  answerId: Joi.number().integer().required().min(1)
+    .messages({
+      'number.base': 'Answer ID must be a number',
+      'number.integer': 'Answer ID must be an integer',
+      'number.min': 'Answer ID must be at least 1'
+    }),
+  answerText: Joi.string().trim().min(1).max(500)
+    .messages({
+      'string.empty': 'Answer text is required',
+      'string.min': 'Answer text must be at least 1 character',
+      'string.max': 'Answer text cannot exceed 500 characters'
+    }),
+  selectedOptionIds: Joi.array().items(Joi.number().integer().min(1))
+    .messages({
+      'array.base': 'Selected options must be an array',
+      'number.base': 'Option ID must be a number',
+      'number.integer': 'Option ID must be an integer',
+      'number.min': 'Option ID must be at least 1'
+    })
+}).custom((value, helpers) => {
+  if (!value.answerText && !value.selectedOptionIds) {
+    return helpers.error('object.missing', {
+      message: 'Either answerText or selectedOptionIds must be provided'
+    });
+  }
+  if (value.answerText && value.selectedOptionIds) {
+    return helpers.error('object.xor', {
+      message: 'Cannot provide both answerText and selectedOptionIds'
+    });
+  }
+  return value;
+});
+
 module.exports = {
   createTitleSchema,
   createQuestionGroupSchema,
@@ -160,5 +205,6 @@ module.exports = {
   deleteQuestionSchema,
   deleteOptionSchema,
   submitAnswerSchema,
-  addOptionSchema
+  addOptionSchema,
+  updateAnswerSchema
 };
