@@ -13,7 +13,7 @@ const getPagingData = (data, page, limit, totalItems) => {
     data,
     pagination: {
       totalItems,
-      itemsPerPage: limit,
+      itemsPerPage: Number(limit),
       currentPage,
       totalPages,
       hasNextPage: currentPage < totalPages,

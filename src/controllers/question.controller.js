@@ -1,7 +1,7 @@
 const db = require('../models');
-const { 
-  createTitleSchema, 
-  createQuestionGroupSchema, 
+const {
+  createTitleSchema,
+  createQuestionGroupSchema,
   createQuestionSchema,
   updateTextSchema,
   deleteQuestionSchema,
@@ -390,8 +390,8 @@ const updateText = async (req, res) => {
       }
       await question.update({ questionText: text });
       return res.status(200).json({ message: 'Question text updated successfully' });
-    } 
-    
+    }
+
     if (type === 'option') {
       const option = await db.options.findByPk(id);
       if (!option) {
@@ -407,8 +407,8 @@ const updateText = async (req, res) => {
 
 const deleteQuestion = async (req, res) => {
   try {
-    const questionId=req.params?.questionId;
-    if(!questionId){
+    const questionId = req.params?.questionId;
+    if (!questionId) {
       return res.status(400).json({ message: 'Question ID is required' });
     }
     const question = await db.questions.findByPk(questionId);
@@ -435,10 +435,10 @@ const deleteQuestion = async (req, res) => {
 
 const deleteOption = async (req, res) => {
   try {
-   let optionId=req.params?.optionId;
-   if(!optionId){
-     return res.status(400).json({ message: 'Option ID is required' });
-   }
+    let optionId = req.params?.optionId;
+    if (!optionId) {
+      return res.status(400).json({ message: 'Option ID is required' });
+    }
 
     const option = await db.options.findByPk(optionId);
 
@@ -452,10 +452,10 @@ const deleteOption = async (req, res) => {
       const optionCount = await db.options.count({
         where: { questionId: option.questionId }
       });
-      
+
       if (optionCount <= 1) {
-        return res.status(400).json({ 
-          message: 'Cannot delete the last option of a radio/select/checkbox question' 
+        return res.status(400).json({
+          message: 'Cannot delete the last option of a radio/select/checkbox question'
         });
       }
     }
@@ -483,8 +483,8 @@ const addOption = async (req, res) => {
     }
 
     if (!['radio', 'select', 'checkbox'].includes(question.questionType)) {
-      return res.status(400).json({ 
-        message: 'Options can only be added to radio, select, or checkbox questions' 
+      return res.status(400).json({
+        message: 'Options can only be added to radio, select, or checkbox questions'
       });
     }
 
@@ -503,6 +503,79 @@ const addOption = async (req, res) => {
   }
 };
 
+const getAllTitles = async (req, res) => {
+  try {
+    const titles = await db.titles.findAll({
+      attributes: ['id', 'name', 'description', 'createdAt'],
+      order: [['createdAt', 'DESC']]
+    });
+
+    return res.status(200).json({
+      message: 'Titles retrieved successfully',
+      data: titles
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+const getAllQuestions = async (req, res) => {
+  try {
+    var { page, limit } = req.query;
+    var { limit, offset } = getPagination(page, limit);
+
+    const questions = await db.questions.findAndCountAll({
+      attributes: ['id', 'questionText', 'questionType'],
+      include: [
+        {
+          model: db.titles,
+          attributes: ['id', 'name'],
+          required: true
+        },
+        {
+          model: db.questionGroups,
+          attributes: ['id', 'name'],
+          required: false
+        },
+        {
+          model: db.options,
+          attributes: ['id', 'optionText'],
+          required: false
+        }
+      ],
+      limit: limit,
+      offset: offset
+    });
+
+    const result = getPagingData(
+      questions.rows.map(question => ({
+        question_id: question.id,
+        questionText: question.questionText,
+        questionType: question.questionType,
+        title: {
+          id: question.title.id,
+          name: question.title.name
+        },
+        group: question.question_group ? {
+          id: question.question_group.id,
+          name: question.question_group.name
+        } : null,
+        options: question.options.map(option => ({
+          id: option.id,
+          optionText: option.optionText
+        }))
+      })),
+      page,
+      limit,
+      questions.count
+    );
+
+    return res.status(200).json(result);
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   createTitle,
   createQuestionGroup,
@@ -513,5 +586,7 @@ module.exports = {
   updateText,
   deleteQuestion,
   deleteOption,
-  addOption
+  addOption,
+  getAllTitles,
+  getAllQuestions
 };

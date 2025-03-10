@@ -11,7 +11,9 @@ const {
   updateText,
   deleteQuestion,
   deleteOption,
-  addOption
+  addOption,
+  getAllTitles,
+  getAllQuestions
 } = require('../controllers/question.controller');
 
 const router = express.Router();
@@ -584,5 +586,152 @@ router.delete('/admin/option/delete/:optionId', verifyToken, isAdmin, deleteOpti
  *                   example: "Question not found"
  */
 router.post('/admin/option/add', verifyToken, isAdmin, addOption);
+
+/**
+ * @swagger
+ * /api/admin/titles:
+ *   get:
+ *     tags: [Admin]
+ *     summary: Get all titles (admin only)
+ *     description: Retrieves all titles with their details, sorted by creation date
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Titles retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Titles retrieved successfully"
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: integer
+ *                         example: 1
+ *                       name:
+ *                         type: string
+ *                         example: "Diet Plan"
+ *                       description:
+ *                         type: string
+ *                         example: "Questions about your diet and health"
+ *                       createdAt:
+ *                         type: string
+ *                         format: date-time
+ *                         example: "2025-03-10T11:00:00.000Z"
+ *       403:
+ *         description: Access denied. Admin privileges required.
+ */
+router.get('/admin/titles', verifyToken, isAdmin, getAllTitles);
+
+/**
+ * @swagger
+ * /api/admin/questions:
+ *   get:
+ *     tags: [Admin]
+ *     summary: Get all questions with their titles and groups (admin only)
+ *     description: Retrieves all questions with their associated titles, groups, and options, with pagination
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: size
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 10
+ *         description: Items per page
+ *     responses:
+ *       200:
+ *         description: Questions retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       question_id:
+ *                         type: integer
+ *                         example: 1
+ *                       questionText:
+ *                         type: string
+ *                         example: "What is your weight?"
+ *                       questionType:
+ *                         type: string
+ *                         enum: [text, radio, select, checkbox]
+ *                         example: "select"
+ *                       title:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: integer
+ *                             example: 1
+ *                           name:
+ *                             type: string
+ *                             example: "Diet Plan"
+ *                       group:
+ *                         type: object
+ *                         nullable: true
+ *                         properties:
+ *                           id:
+ *                             type: integer
+ *                             example: 1
+ *                           name:
+ *                             type: string
+ *                             example: "Basic Information"
+ *                       options:
+ *                         type: array
+ *                         items:
+ *                           type: object
+ *                           properties:
+ *                             id:
+ *                               type: integer
+ *                               example: 1
+ *                             optionText:
+ *                               type: string
+ *                               example: "50-60 kg"
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     totalItems:
+ *                       type: integer
+ *                       example: 50
+ *                     itemsPerPage:
+ *                       type: integer
+ *                       example: 10
+ *                     currentPage:
+ *                       type: integer
+ *                       example: 1
+ *                     totalPages:
+ *                       type: integer
+ *                       example: 5
+ *                     hasNextPage:
+ *                       type: boolean
+ *                       example: true
+ *                     hasPreviousPage:
+ *                       type: boolean
+ *                       example: false
+ *       403:
+ *         description: Access denied. Admin privileges required.
+ */
+router.get('/admin/questions', verifyToken, isAdmin, getAllQuestions);
 
 module.exports = router;
