@@ -1,9 +1,17 @@
 module.exports = (sequelize, Sequelize) => {
-  const Project = sequelize.define('project', {
+  const Answer = sequelize.define('answer', {
     id: {
       type: Sequelize.INTEGER,
       autoIncrement: true,
       primaryKey: true
+    },
+    questionId: {
+      type: Sequelize.INTEGER,
+      allowNull: false,
+      references: {
+        model: 'questions',
+        key: 'id'
+      }
     },
     userId: {
       type: Sequelize.INTEGER,
@@ -13,25 +21,17 @@ module.exports = (sequelize, Sequelize) => {
         key: 'id'
       }
     },
-    name: {
-      type: Sequelize.STRING,
-      allowNull: false
+    answerText: {
+      type: Sequelize.ARRAY(Sequelize.TEXT),
+      allowNull: true,
     },
-    type: {
-      type: Sequelize.INTEGER,
-      allowNull: false
-    },
-    description: {
-      type: Sequelize.TEXT,
-      allowNull: true
-    },
-    companyInfo: {
-      type: Sequelize.JSON,
-      allowNull: true
+    selectedOptionIds: {
+      type: Sequelize.ARRAY(Sequelize.INTEGER),
+      allowNull: true,
     },
     status: {
       type: Sequelize.INTEGER,
-      defaultValue: 1, // 1: active, 2: inactive, 3: soft deleted
+      defaultValue: 1,
       allowNull: false
     },
     createdBy: {
@@ -46,5 +46,5 @@ module.exports = (sequelize, Sequelize) => {
     timestamps: true,
   });
 
-  return Project;
+  return Answer;
 };

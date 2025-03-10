@@ -127,8 +127,8 @@ The API will be available at `http://localhost:3000` and Swagger documentation a
 - `roleId` (UUID, Foreign Key)
 - `createdBy` (UUID)
 - `updatedBy` (UUID)
-- `created_at` (DateTime)
-- `updated_at` (DateTime)
+- `createdAt` (DateTime)
+- `updatedAt` (DateTime)
 
 ### Roles Table
 - `id` (UUID, Primary Key)
@@ -136,8 +136,8 @@ The API will be available at `http://localhost:3000` and Swagger documentation a
 - `status` (Integer)
 - `createdBy` (UUID)
 - `updatedBy` (UUID)
-- `created_at` (DateTime)
-- `updated_at` (DateTime)
+- `createdAt` (DateTime)
+- `updatedAt` (DateTime)
 
 ## Contributing
 

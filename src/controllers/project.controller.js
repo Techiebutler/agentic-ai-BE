@@ -119,7 +119,7 @@ const getUserProjects = async (req, res) => {
         model: User,
         attributes: { exclude: ['password', 'otpExpiry','isEmailVerified','verificationOtp'] }
       }],
-      order: [['created_at', 'DESC']],
+      order: [['createdAt', 'DESC']],
       limit,
       offset
     });
@@ -186,7 +186,7 @@ const getUsersList = async (req, res) => {
         attributes: ['name']
       }],
       attributes: { exclude: ['password', 'verificationOtp', 'otpExpiry'] },
-      order: [['created_at', 'DESC']],
+      order: [['createdAt', 'DESC']],
       limit,
       offset
     });
@@ -225,7 +225,7 @@ const getUserProjectsByAdmin = async (req, res) => {
         model: User,
         attributes: { exclude: ['password', 'verificationOtp', 'otpExpiry'] }
       }],
-      order: [['created_at', 'DESC']],
+      order: [['createdAt', 'DESC']],
       limit,
       offset
     });

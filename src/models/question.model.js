@@ -1,37 +1,41 @@
 module.exports = (sequelize, Sequelize) => {
-  const Project = sequelize.define('project', {
+  const Question = sequelize.define('question', {
     id: {
       type: Sequelize.INTEGER,
       autoIncrement: true,
       primaryKey: true
     },
-    userId: {
+    titleId: {
       type: Sequelize.INTEGER,
-      allowNull: false,
+      allowNull: true,
       references: {
-        model: 'users',
+        model: 'titles',
         key: 'id'
       }
     },
-    name: {
-      type: Sequelize.STRING,
-      allowNull: false
-    },
-    type: {
+    groupId: {
       type: Sequelize.INTEGER,
-      allowNull: false
+      allowNull: true,
+      references: {
+        model: 'question_groups',
+        key: 'id'
+      }
     },
-    description: {
+    questionText: {
       type: Sequelize.TEXT,
-      allowNull: true
+      allowNull: false,
     },
-    companyInfo: {
-      type: Sequelize.JSON,
-      allowNull: true
+    questionType: {
+      type: Sequelize.ENUM('text', 'radio', 'select', 'checkbox'),
+      allowNull: false,
+    },
+    isRequired: {
+      type: Sequelize.BOOLEAN,
+      defaultValue: false,
     },
     status: {
       type: Sequelize.INTEGER,
-      defaultValue: 1, // 1: active, 2: inactive, 3: soft deleted
+      defaultValue: 1,
       allowNull: false
     },
     createdBy: {
@@ -46,5 +50,5 @@ module.exports = (sequelize, Sequelize) => {
     timestamps: true,
   });
 
-  return Project;
+  return Question;
 };
