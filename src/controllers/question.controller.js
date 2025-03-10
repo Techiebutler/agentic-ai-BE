@@ -152,7 +152,7 @@ const getQuestionsByTitle = async (req, res) => {
                     SELECT COALESCE(
                         JSONB_AGG(
                             JSONB_BUILD_OBJECT(
-                                'question_id', q.id,
+                                'questionId', q.id,
                                 'questionText', q."questionText",
                                 'questionType', q."questionType",
                                 'options', (
@@ -179,7 +179,7 @@ const getQuestionsByTitle = async (req, res) => {
     COALESCE(
         JSONB_AGG(
             DISTINCT JSONB_BUILD_OBJECT( -- Ensure unique questions
-                'question_id', q.id,
+                'questionId', q.id,
                 'questionText', q."questionText",
                 'questionType', q."questionType",
                 'options', (
@@ -228,6 +228,7 @@ LIMIT :limit OFFSET :offset;
 
 const submitAnswer = async (req, res) => {
   try {
+    const userId = req.user.id;
     const { error, value } = submitAnswerSchema.validate(req.body);
     if (error) {
       return res.status(400).json({ message: error.details[0].message });
@@ -257,12 +258,12 @@ const submitAnswer = async (req, res) => {
     const [answer, created] = await db.answers.findOrCreate({
       where: {
         questionId: value.questionId,
-        userId: req.userId
+        userId: userId
       },
       defaults: {
         answerText: value.answerText,
         selectedOptionIds: value.selectedOptionIds,
-        createdBy: req.userId
+        createdBy: userId
       }
     });
 
@@ -270,7 +271,7 @@ const submitAnswer = async (req, res) => {
       await answer.update({
         answerText: value.answerText,
         selectedOptionIds: value.selectedOptionIds,
-        updatedBy: req.userId
+        updatedBy: userId
       });
     }
 
@@ -308,9 +309,9 @@ const getUserAnswers = async (req, res) => {
                   'questions', (
                     SELECT JSON_AGG(
                       JSON_BUILD_OBJECT(
-                        'question_id', q.id,
+                        'questionId', q.id,
                         'questionText', q."questionText",
-                        'questionType', q.questionType,
+                        'questionType', q."questionType",
                         'answer', 
                           CASE 
                             WHEN q.questionType IN ('select', 'checkbox') THEN COALESCE(a.answer_value, '{}'::TEXT[])
@@ -319,7 +320,7 @@ const getUserAnswers = async (req, res) => {
                       )
                     )
                     FROM questions q
-                    LEFT JOIN answers a ON a.question_id = q.id AND a.user_id = :userId
+                    LEFT JOIN answers a ON a.questionId = q.id AND a.user_id = :userId
                     WHERE q.groupId = g.id
                   )
                 )
@@ -332,7 +333,7 @@ const getUserAnswers = async (req, res) => {
             CASE 
               WHEN q.groupId IS NULL THEN 
                 JSON_BUILD_OBJECT(
-                  'question_id', q.id,
+                  'questionId', q.id,
                   'questionText', q."questionText",
                   'questionType', q.questionType,
                   'answer', 
@@ -348,7 +349,7 @@ const getUserAnswers = async (req, res) => {
       FROM titles t
       LEFT JOIN question_groups g ON g.titleId = t.id
       LEFT JOIN questions q ON q.titleId = t.id OR q.groupId = g.id
-      LEFT JOIN answers a ON a.question_id = q.id AND a.user_id = :userId
+      LEFT JOIN answers a ON a.questionId = q.id AND a.user_id = :userId
       WHERE t.id = :titleId AND t.status = 1
       GROUP BY t.id, t.name
       LIMIT :limit OFFSET :offset
@@ -549,7 +550,7 @@ const getAllQuestions = async (req, res) => {
 
     const result = getPagingData(
       questions.rows.map(question => ({
-        question_id: question.id,
+        questionId: question.id,
         questionText: question.questionText,
         questionType: question.questionType,
         title: {
