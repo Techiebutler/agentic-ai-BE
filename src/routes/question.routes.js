@@ -78,7 +78,7 @@ const router = express.Router();
  *                               items:
  *                                 type: object
  *                                 properties:
- *                                   question_id:
+ *                                   questionId:
  *                                     type: integer
  *                                   questionText:
  *                                     type: string
@@ -99,7 +99,7 @@ const router = express.Router();
  *                         items:
  *                           type: object
  *                           properties:
- *                             question_id:
+ *                             questionId:
  *                               type: integer
  *                             questionText:
  *                               type: string
@@ -668,7 +668,7 @@ router.get('/admin/titles', verifyToken, isAdmin, getAllTitles);
  *                   items:
  *                     type: object
  *                     properties:
- *                       question_id:
+ *                       questionId:
  *                         type: integer
  *                         example: 1
  *                       questionText:
