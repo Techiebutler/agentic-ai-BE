@@ -8,7 +8,11 @@ const {
   deleteOptionSchema,
   submitAnswerSchema,
   addOptionSchema,
-  updateAnswerSchema
+  updateAnswerSchema,
+  getProjectAnswersSchema,
+  getLlmHistorySchema,
+  saveLlmHistorySchema,
+  getQuestionGroupsSchema
 } = require('../validations/question.validation');
 const { getPagination, getPagingData } = require('../utils/pagination');
 
@@ -94,14 +98,13 @@ const createQuestion = async (req, res) => {
         createdBy: userId
       }, { transaction: t });
 
-      // Create options if provided
-      if (value.options && value.options.length > 0) {
+      // Create options if provided for radio, select, checkbox types
+      if (value.options && ['radio', 'select', 'checkbox'].includes(value.questionType)) {
         const options = value.options.map(opt => ({
           ...opt,
           questionId: newQuestion.id,
           createdBy: userId
         }));
-        console.log("options", options);
         await db.options.bulkCreate(options, { transaction: t });
       }
 
@@ -127,9 +130,6 @@ const createQuestion = async (req, res) => {
 
 const getQuestionsByTitle = async (req, res) => {
   try {
-    const { page, size } = req.query;
-    const { limit, offset } = getPagination(page, size);
-
     const titleId = req.params.titleId;
 
     const title = await db.titles.findByPk(titleId);
@@ -138,12 +138,12 @@ const getQuestionsByTitle = async (req, res) => {
     }
 
     const result = await db.sequelize.query(`
-     SELECT 
+    SELECT 
     t.id AS titleId,
     t.name AS title_name,
     COALESCE(
         JSONB_AGG(
-            JSONB_BUILD_OBJECT(
+            DISTINCT JSONB_BUILD_OBJECT(  -- Ensures unique group objects
                 'groupId', g.id,
                 'group_name', g.name,
                 'questions', (
@@ -176,10 +176,10 @@ const getQuestionsByTitle = async (req, res) => {
     ) AS grouped_questions,
     COALESCE(
         JSONB_AGG(
-            DISTINCT JSONB_BUILD_OBJECT( -- Ensure unique questions
-                'questionId', q.id,
-                'questionText', q."questionText",
-                'questionType', q."questionType",
+            DISTINCT JSONB_BUILD_OBJECT(
+                'questionId', uq.id,
+                'questionText', uq."questionText",
+                'questionType', uq."questionType",
                 'options', (
                     SELECT COALESCE(
                         JSONB_AGG(
@@ -190,28 +190,24 @@ const getQuestionsByTitle = async (req, res) => {
                         ) FILTER (WHERE o.id IS NOT NULL), '[]'::JSONB
                     )
                     FROM options o
-                    WHERE o."questionId" = q.id
+                    WHERE o."questionId" = uq.id
                 )
             )
-        ) FILTER (WHERE q.id IS NOT NULL), '[]'::JSONB
+        ) FILTER (WHERE uq.id IS NOT NULL), '[]'::JSONB
     ) AS ungrouped_questions
 FROM titles t
 LEFT JOIN question_groups g ON g."titleId" = t.id
-LEFT JOIN questions q ON q."titleId" = t.id AND q."groupId" IS NULL
+LEFT JOIN questions uq ON uq."titleId" = t.id AND uq."groupId" IS NULL  -- Ensures uq is available for ungrouped_questions
 WHERE t.id = :titleId AND t.status = 1
 GROUP BY t.id, t.name
-LIMIT :limit OFFSET :offset;
     `, {
-      replacements: { titleId, limit, offset },
+      replacements: { titleId },
       type: db.sequelize.QueryTypes.SELECT
     });
 
-    const count = await db.questions.count({
-      where: { titleId, status: 1 }
-    });
 
     res.json({
-      ...getPagingData(result, page, limit, count),
+      result,
       title: {
         id: title.id,
         name: title.name,
@@ -231,26 +227,43 @@ const submitAnswer = async (req, res) => {
     if (error) {
       return res.status(400).json({ message: error.details[0].message });
     }
+    console.log("value", value);
 
-    const { questionId, answerText, selectedOptionIds } = value;
+    const { questionId, projectId, answerText, selectedOptionIds } = value;
 
-    // Validate question exists
+    // Validate project exists and user has access
+    const project = await db.projects.findOne({
+      where: { id: projectId, status: 1 }
+    });
+    if (!project) {
+      return res.status(404).json({ message: 'Project not found' });
+    }
+
+    // Check if user has access to this project
+    const userProject = await db.projects.findOne({
+      where: { userId, id: projectId }
+    });
+    if (!userProject) {
+      return res.status(403).json({ message: 'Access denied to this project' });
+    }
+
+    // Find the question
     const question = await db.questions.findByPk(questionId);
     if (!question) {
       return res.status(404).json({ message: 'Question not found' });
     }
 
     // Validate question type matches input type
-    if (question.questionType === 'text' && !answerText) {
+    if ((question.questionType === 'text' || question.questionType === 'llm') && !answerText) {
       return res.status(400).json({ message: 'Text answer required for text questions' });
     }
     if (['radio', 'select', 'checkbox'].includes(question.questionType) && !selectedOptionIds) {
       return res.status(400).json({ message: 'Option selection required for this question type' });
     }
 
-    // For radio/select, ensure only one option is selected
+    // For radio questions, ensure only one option is selected
     if (['radio'].includes(question.questionType) && selectedOptionIds.length !== 1) {
-      return res.status(400).json({ message: 'Exactly one option must be selected for radio/select questions' });
+      return res.status(400).json({ message: 'Exactly one option must be selected for radio questions' });
     }
 
     // Validate selected options exist and belong to the question
@@ -258,7 +271,7 @@ const submitAnswer = async (req, res) => {
       const validOptions = await db.options.count({
         where: {
           id: selectedOptionIds,
-          questionId: questionId
+          questionId
         }
       });
 
@@ -267,31 +280,51 @@ const submitAnswer = async (req, res) => {
       }
     }
 
-    // Find or create answer
-    const [answer, created] = await db.answers.findOrCreate({
-      where: {
-        questionId,
-        userId
-      },
-      defaults: {
-        answerText: question.questionType === 'text' ? answerText : null,
-        selectedOptionIds: ['radio', 'select', 'checkbox'].includes(question.questionType) ? selectedOptionIds : null,
-        createdBy: userId
-      }
+    // Check if answer already exists for this user and question
+    let answer = await db.answers.findOne({
+      where: { userId, questionId, projectId }
     });
 
-    // Update if answer already exists
-    if (!created) {
-      await answer.update({
-        answerText: question.questionType === 'text' ? answerText : null,
+    if (answer) {
+      // Update existing answer
+      answer = await answer.update({
+        answerText: (question.questionType === 'text' || question.questionType === 'llm') ? answerText : null,
         selectedOptionIds: ['radio', 'select', 'checkbox'].includes(question.questionType) ? selectedOptionIds : null,
         updatedBy: userId
       });
+
+      return res.status(200).json({
+        message: 'Answer updated successfully',
+        answer: {
+          id: answer.id,
+          questionId: answer.questionId,
+          projectId: answer.projectId,
+          answerText: answer.answerText,
+          selectedOptionIds: answer.selectedOptionIds
+        }
+      });
     }
 
-    return res.status(created ? 201 : 200).json({
-      message: created ? 'Answer submitted successfully' : 'Answer updated successfully',
-      answer
+    // Create new answer
+    answer = await db.answers.create({
+      userId,
+      questionId,
+      projectId,
+      answerText: (question.questionType === 'text' || question.questionType === 'llm') ? answerText : null,
+      selectedOptionIds: ['radio', 'select', 'checkbox'].includes(question.questionType) ? selectedOptionIds : null,
+      createdBy: userId,
+      updatedBy: userId
+    });
+
+    return res.status(201).json({
+      message: 'Answer submitted successfully',
+      answer: {
+        id: answer.id,
+        questionId: answer.questionId,
+        projectId: answer.projectId,
+        answerText: answer.answerText,
+        selectedOptionIds: answer.selectedOptionIds
+      }
     });
 
   } catch (error) {
@@ -301,8 +334,8 @@ const submitAnswer = async (req, res) => {
 
 const getUserAnswers = async (req, res) => {
   try {
-    const { page, size } = req.query;
-    const { limit, offset } = getPagination(page, size);
+    var { page, limit } = req.query;
+    var { limit, offset } = getPagination(page, limit);
     const userId = req.user.id;
 
     const rawQuery = `
@@ -542,7 +575,7 @@ const getAllTitles = async (req, res) => {
   try {
     const titles = await db.titles.findAll({
       attributes: ['id', 'name', 'description', 'createdAt'],
-      order: [['createdAt', 'DESC']]
+      order: [['createdAt', 'ASC']]
     });
 
     return res.status(200).json({
@@ -619,11 +652,27 @@ const updateAnswer = async (req, res) => {
       return res.status(400).json({ message: error.details[0].message });
     }
 
-    const { answerId, answerText, selectedOptionIds } = value;
+    const { answerId, projectId, answerText, selectedOptionIds } = value;
+
+    // Validate project exists and user has access
+    const project = await db.projects.findOne({
+      where: { id: projectId, status: 1 }
+    });
+    if (!project) {
+      return res.status(404).json({ message: 'Project not found' });
+    }
+
+    // Check if user has access to this project
+    const userProject = await db.projects.findOne({
+      where: { userId, id: projectId }
+    });
+    if (!userProject) {
+      return res.status(403).json({ message: 'Access denied to this project' });
+    }
 
     // Find the answer and check ownership
     const answer = await db.answers.findOne({
-      where: { id: answerId },
+      where: { id: answerId, projectId },
       include: [{
         model: db.questions,
         attributes: ['id', 'questionType']
@@ -639,14 +688,14 @@ const updateAnswer = async (req, res) => {
     }
 
     // Validate question type matches input type
-    if (answer.question.questionType === 'text' && !answerText) {
+    if ((answer.question.questionType === 'text' || answer.question.questionType === 'llm') && !answerText) {
       return res.status(400).json({ message: 'Text answer required for text questions' });
     }
     if (['radio', 'select', 'checkbox'].includes(answer.question.questionType) && !selectedOptionIds) {
       return res.status(400).json({ message: 'Option selection required for this question type' });
     }
 
-    // For radio, ensure only one option is selected
+    // For radio questions, ensure only one option is selected
     if (['radio'].includes(answer.question.questionType) && selectedOptionIds.length !== 1) {
       return res.status(400).json({ message: 'Exactly one option must be selected for radio questions' });
     }
@@ -667,7 +716,7 @@ const updateAnswer = async (req, res) => {
 
     // Update the answer
     await answer.update({
-      answerText: answer.question.questionType === 'text' ? answerText : null,
+      answerText: (answer.question.questionType === 'text' || answer.question.questionType === 'llm') ? answerText : null,
       selectedOptionIds: ['radio', 'select', 'checkbox'].includes(answer.question.questionType) ? selectedOptionIds : null,
       updatedBy: userId
     });
@@ -677,6 +726,7 @@ const updateAnswer = async (req, res) => {
       answer: {
         id: answer.id,
         questionId: answer.questionId,
+        projectId: answer.projectId,
         answerText: answer.answerText,
         selectedOptionIds: answer.selectedOptionIds
       }
@@ -684,6 +734,292 @@ const updateAnswer = async (req, res) => {
 
   } catch (error) {
     return res.status(500).json({ message: error.message });
+  }
+};
+
+const getProjectAnswers = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { error, value } = getProjectAnswersSchema.validate(req.query);
+    if (error) {
+      return res.status(400).json({ message: error.details[0].message });
+    }
+
+    let titleId = Number(value.titleId)
+    let projectId = Number(value.projectId)
+
+    var { page, limit } = req.query;
+    var { limit, offset } = getPagination(page, limit);
+
+    // Validate project exists and user has access
+    const project = await db.projects.findOne({
+      where: { id: projectId, status: 1 }
+    });
+    if (!project) {
+      return res.status(404).json({ message: 'Project not found' });
+    }
+
+    // Check if user has access to this project
+    const userProject = await db.projects.findOne({
+      where: { userId, id: projectId }
+    });
+    if (!userProject) {
+      return res.status(403).json({ message: 'Access denied to this project' });
+    }
+
+    const rawQuery = `
+    SELECT 
+        t.id AS "titleId",
+        t.name AS "titleName",
+        COALESCE(
+            JSONB_AGG(
+                DISTINCT JSONB_BUILD_OBJECT(
+                    'id', g.id,
+                    'name', g.name,
+                    'questions', (
+                        SELECT JSONB_AGG(
+                            DISTINCT JSONB_BUILD_OBJECT(
+                                'questionId', q.id,
+                                'questionText', q."questionText",
+                                'questionType', q."questionType",
+                                'answerId', a.id,
+                                'answer', 
+                                    CASE 
+                                        WHEN q."questionType" IN ('text', 'llm') THEN 
+                                            TO_JSONB(a."answerText")
+                                        WHEN q."questionType" IN ('radio', 'select', 'checkbox') THEN 
+                                            TO_JSONB(COALESCE(a."selectedOptionIds", '{}'::integer[]))
+                                    END,
+                                'options',
+                                    CASE 
+                                        WHEN q."questionType" IN ('radio', 'select', 'checkbox') THEN
+                                            (SELECT JSONB_AGG(
+                                                JSONB_BUILD_OBJECT(
+                                                    'id', o.id,
+                                                    'optionText', o."optionText",
+                                                    'isSelected', o.id = ANY(COALESCE(a."selectedOptionIds", '{}'::integer[]))
+                                                )
+                                            )
+                                            FROM options o
+                                            WHERE o."questionId" = q.id)
+                                        ELSE NULL
+                                    END
+                            )
+                        )
+                        FROM questions q
+                        LEFT JOIN answers a ON a."questionId" = q.id AND a."userId" = :userId AND a."projectId" = :projectId
+                        WHERE q."groupId" = g.id
+                    )
+                )
+            ) FILTER (WHERE g.id IS NOT NULL), '[]'::JSONB
+        ) AS grouped_questions,
+        COALESCE(
+            JSONB_AGG(
+                DISTINCT CASE 
+                    WHEN q."groupId" IS NULL THEN 
+                        JSONB_BUILD_OBJECT(
+                            'questionId', q.id,
+                            'questionText', q."questionText",
+                            'questionType', q."questionType",
+                            'answerId', a.id,
+                            'answer',
+                                CASE 
+                                    WHEN q."questionType" IN ('text', 'llm') THEN 
+                                        TO_JSONB(a."answerText")
+                                    WHEN q."questionType" IN ('radio', 'select', 'checkbox') THEN 
+                                        TO_JSONB(COALESCE(a."selectedOptionIds", '{}'::integer[]))
+                                END,
+                            'options',
+                                CASE 
+                                    WHEN q."questionType" IN ('radio', 'select', 'checkbox') THEN
+                                        (SELECT JSONB_AGG(
+                                            JSONB_BUILD_OBJECT(
+                                                'id', o.id,
+                                                'optionText', o."optionText",
+                                                'isSelected', o.id = ANY(COALESCE(a."selectedOptionIds", '{}'::integer[]))
+                                            )
+                                        )
+                                        FROM options o
+                                        WHERE o."questionId" = q.id)
+                                    ELSE NULL
+                                END
+                        )
+                END
+            ) FILTER (WHERE q."groupId" IS NULL), '[]'::JSONB
+        ) AS ungrouped_questions
+    FROM titles t
+    LEFT JOIN question_groups g ON g."titleId" = t.id
+    LEFT JOIN questions q ON q."titleId" = t.id
+    LEFT JOIN answers a ON a."questionId" = q.id AND a."userId" = :userId AND a."projectId" = :projectId
+    WHERE t.id = :titleId AND t.status = 1
+    GROUP BY t.id, t.name
+    LIMIT :limit OFFSET :offset;
+    `;
+
+    const result = await db.sequelize.query(rawQuery, {
+      replacements: { userId, projectId, titleId, limit, offset },
+      type: db.sequelize.QueryTypes.SELECT
+    });
+
+    const data = getPagingData(result, page, limit);
+    return res.status(200).json({
+      message: 'Project answers retrieved successfully',
+      data
+    });
+
+  } catch (error) {
+    console.log("e", error);
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+const getLlmHistory = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { error, value } = getLlmHistorySchema.validate(req.query);
+    if (error) {
+      return res.status(400).json({ message: error.details[0].message });
+    }
+
+    const { projectId, questionId } = value;
+    var { page, limit } = req.query;
+    var { limit, offset } = getPagination(page, limit);
+
+    // Validate project exists and user has access
+    const project = await db.projects.findOne({
+      where: { id: projectId, status: 1 }
+    });
+    if (!project) {
+      return res.status(404).json({ message: 'Project not found' });
+    }
+
+    // Check if user has access to this project
+    const userProject = await db.projects.findOne({
+      where: { userId, id: projectId }
+    });
+    if (!userProject) {
+      return res.status(403).json({ message: 'Access denied to this project' });
+    }
+
+    // Get LLM history with pagination
+    const history = await db.llmHistories.findAndCountAll({
+      where: {
+        userId,
+        projectId,
+        questionId
+      },
+      order: [['createdAt', 'DESC']],
+      limit,
+      offset,
+      include: [{
+        model: db.questions,
+        attributes: ['questionText', 'questionType']
+      }]
+    });
+
+    const data = getPagingData(history.rows, page, limit, history.count);
+    
+    return res.status(200).json({
+      message: 'LLM history retrieved successfully',
+      data
+    });
+
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+const saveLlmHistory = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { error, value } = saveLlmHistorySchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({ message: error.details[0].message });
+    }
+
+    const { questionId, projectId, llmAnswer, rejectionReason } = value;
+
+    // Validate project exists and user has access
+    const project = await db.projects.findOne({
+      where: { id: projectId, status: 1 }
+    });
+    if (!project) {
+      return res.status(404).json({ message: 'Project not found' });
+    }
+
+    // Check if user has access to this project
+    const userProject = await db.projects.findOne({
+      where: { userId, id: projectId }
+    });
+    if (!userProject) {
+      return res.status(403).json({ message: 'Access denied to this project' });
+    }
+
+    // Validate question exists and is LLM type
+    const question = await db.questions.findOne({
+      where: { id: questionId }
+    });
+    if (!question) {
+      return res.status(404).json({ message: 'Question not found' });
+    }
+    if (question.questionType !== 'llm') {
+      return res.status(400).json({ message: 'This operation is only valid for LLM type questions' });
+    }
+
+    // Save to LLM history
+    const history = await db.llmHistories.create({
+      userId,
+      projectId,
+      questionId,
+      llmAnswer,
+      rejectionReason,
+      createdBy: userId
+    });
+
+    return res.status(201).json({
+      message: 'LLM history saved successfully',
+      history
+    });
+
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+const getAllQuestionGroups = async (req, res) => {
+  try {
+    const { error, value } = getQuestionGroupsSchema.validate(req.params);
+    if (error) {
+      return res.status(400).json({ message: error.details[0].message });
+    }
+
+    const { titleId } = value;
+
+    // Validate title exists
+    const title = await db.titles.findByPk(titleId);
+    if (!title) {
+      return res.status(404).json({ message: 'Title not found' });
+    }
+
+    const groups = await db.questionGroups.findAll({
+      where: { titleId, status: 1 },  // Only get active groups
+      attributes: ['id', 'name', 'titleId', 'createdAt'],
+      include: [{
+        model: db.titles,
+        attributes: ['name'],
+        as: 'title',
+        where: { status: 1 }  // Only include active titles
+      }],
+      order: [['createdAt', 'ASC']]
+    });
+
+    return res.status(200).json({
+      message: 'Question groups retrieved successfully',
+      data: groups
+    });
+  } catch (error) {
+    console.error('Error getting question groups:', error);
+    return res.status(500).json({ message: 'Error retrieving question groups' });
   }
 };
 
@@ -700,5 +1036,9 @@ module.exports = {
   addOption,
   getAllTitles,
   getAllQuestions,
-  updateAnswer
+  updateAnswer,
+  getProjectAnswers,
+  getLlmHistory,
+  saveLlmHistory,
+  getAllQuestionGroups
 };

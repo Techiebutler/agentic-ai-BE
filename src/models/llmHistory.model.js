@@ -1,5 +1,5 @@
 module.exports = (sequelize, Sequelize) => {
-  const Answer = sequelize.define('answer', {
+  const LlmHistory = sequelize.define('llmHistory', {
     id: {
       type: Sequelize.INTEGER,
       autoIncrement: true,
@@ -29,30 +29,23 @@ module.exports = (sequelize, Sequelize) => {
         key: 'id'
       }
     },
-    answerText: {
+    llmAnswer: {
       type: Sequelize.TEXT,
-      allowNull: true
+      allowNull: false
     },
-    selectedOptionIds: {
-      type: Sequelize.ARRAY(Sequelize.INTEGER),
-      allowNull: true
-    },
-    status: {
-      type: Sequelize.INTEGER,
-      defaultValue: 1,
+    rejectionReason: {
+      type: Sequelize.TEXT,
       allowNull: false
     },
     createdBy: {
       type: Sequelize.INTEGER,
-      allowNull: true
+      allowNull: false
     },
     updatedBy: {
       type: Sequelize.INTEGER,
       allowNull: true
     }
-  }, {
-    timestamps: true,
   });
 
-  return Answer;
+  return LlmHistory;
 };

@@ -22,12 +22,13 @@ module.exports = (sequelize, Sequelize) => {
       }
     },
     questionText: {
-      type: Sequelize.TEXT,
+      type: Sequelize.STRING,
       allowNull: false,
     },
     questionType: {
-      type: Sequelize.ENUM('text', 'radio', 'select', 'checkbox'),
+      type: Sequelize.ENUM('text', 'radio', 'select', 'checkbox', 'llm'),
       allowNull: false,
+      defaultValue: 'text',
     },
     isRequired: {
       type: Sequelize.BOOLEAN,
@@ -40,7 +41,7 @@ module.exports = (sequelize, Sequelize) => {
     },
     createdBy: {
       type: Sequelize.INTEGER,
-      allowNull: true
+      allowNull: false
     },
     updatedBy: {
       type: Sequelize.INTEGER,

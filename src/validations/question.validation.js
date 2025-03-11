@@ -28,27 +28,29 @@ const createQuestionGroupSchema = Joi.object({
 });
 
 const createQuestionSchema = Joi.object({
-  titleId: Joi.number().integer().positive().allow(null)
-    .messages({
-      'number.base': 'Title ID must be a number',
-      'number.positive': 'Title ID must be positive'
-    }),
-  groupId: Joi.number().integer().positive().allow(null)
-    .messages({
-      'number.base': 'Group ID must be a number',
-      'number.positive': 'Group ID must be positive'
-    }),
-  questionText: Joi.string().required().trim().max(1000)
+  questionText: Joi.string().required().trim().min(1).max(500)
     .messages({
       'string.empty': 'Question text is required',
-      'string.min': 'Question text must be at least 10 characters',
-      'string.max': 'Question text cannot exceed 1000 characters'
+      'string.min': 'Question text must be at least 1 character',
+      'string.max': 'Question text cannot exceed 500 characters'
     }),
-  questionType: Joi.string().required().valid('text', 'radio', 'select', 'checkbox')
+  questionType: Joi.string().required().valid('text', 'radio', 'select', 'checkbox', 'llm')
     .messages({
       'string.empty': 'Question type is required',
-      'any.only': 'Question type must be one of: text, radio, select, checkbox'
+      'any.only': 'Question type must be one of: text, radio, select, checkbox, llm'
     }),
+  titleId: Joi.number().integer().min(1)
+    .messages({
+      'number.base': 'Title ID must be a number',
+      'number.integer': 'Title ID must be an integer',
+      'number.min': 'Title ID must be at least 1'
+    }),
+  groupId: Joi.number().integer().min(1)
+    .messages({
+      'number.base': 'Group ID must be a number',
+      'number.integer': 'Group ID must be an integer',
+      'number.min': 'Group ID must be at least 1'
+    }).allow(null).allow(""),
   isRequired: Joi.boolean().default(false)
     .messages({
       'boolean.base': 'Is required must be a boolean'
@@ -71,10 +73,10 @@ const createQuestionSchema = Joi.object({
       }),
     otherwise: Joi.forbidden()
       .messages({
-        'any.unknown': 'Options are not allowed for text questions'
+        'any.unknown': 'Options are not allowed for text or llm questions'
       })
   })
-});
+})
 
 const updateTextSchema = Joi.object({
   type: Joi.string().required().valid('question', 'option')
@@ -121,11 +123,18 @@ const submitAnswerSchema = Joi.object({
       'number.integer': 'Question ID must be an integer',
       'number.min': 'Question ID must be at least 1'
     }),
-  answerText: Joi.string().trim().min(1).max(500)
+  projectId: Joi.number().integer().required().min(1)
     .messages({
-      'string.empty': 'Answer text is required',
+      'number.base': 'Project ID must be a number',
+      'number.integer': 'Project ID must be an integer',
+      'number.min': 'Project ID must be at least 1',
+      'any.required': 'Project ID is required'
+    }),
+  answerText: Joi.string().trim().min(1).max(5000)
+    .messages({
+      'string.empty': 'Answer text cannot be empty',
       'string.min': 'Answer text must be at least 1 character',
-      'string.max': 'Answer text cannot exceed 500 characters'
+      'string.max': 'Answer text cannot exceed 5000 characters'
     }),
   selectedOptionIds: Joi.array().items(Joi.number().integer().min(1))
     .messages({
@@ -170,6 +179,13 @@ const updateAnswerSchema = Joi.object({
       'number.integer': 'Answer ID must be an integer',
       'number.min': 'Answer ID must be at least 1'
     }),
+  projectId: Joi.number().integer().required().min(1)
+    .messages({
+      'number.base': 'Project ID must be a number',
+      'number.integer': 'Project ID must be an integer',
+      'number.min': 'Project ID must be at least 1',
+      'any.required': 'Project ID is required'
+    }),
   answerText: Joi.string().trim().min(1).max(500)
     .messages({
       'string.empty': 'Answer text is required',
@@ -197,6 +213,75 @@ const updateAnswerSchema = Joi.object({
   return value;
 });
 
+const getProjectAnswersSchema = Joi.object({
+  projectId: Joi.number().integer().required().min(1)
+    .messages({
+      'number.base': 'Project ID must be a number',
+      'number.integer': 'Project ID must be an integer',
+      'number.min': 'Project ID must be at least 1',
+      'any.required': 'Project ID is required'
+    }),
+  titleId: Joi.number().integer().positive().allow(null)
+    .messages({
+      'number.base': 'Title ID must be a number',
+      'number.positive': 'Title ID must be positive'
+    })
+});
+
+const getLlmHistorySchema = Joi.object({
+  projectId: Joi.number().integer().required().min(1)
+    .messages({
+      'number.base': 'Project ID must be a number',
+      'number.integer': 'Project ID must be an integer',
+      'number.min': 'Project ID must be at least 1',
+      'any.required': 'Project ID is required'
+    }),
+  questionId: Joi.number().integer().required().min(1)
+    .messages({
+      'number.base': 'Question ID must be a number',
+      'number.integer': 'Question ID must be an integer',
+      'number.min': 'Question ID must be at least 1',
+      'any.required': 'Question ID is required'
+    })
+}).unknown(true);
+
+const saveLlmHistorySchema = Joi.object({
+  questionId: Joi.number().integer().required().min(1)
+    .messages({
+      'number.base': 'Question ID must be a number',
+      'number.integer': 'Question ID must be an integer',
+      'number.min': 'Question ID must be at least 1'
+    }),
+  projectId: Joi.number().integer().required().min(1)
+    .messages({
+      'number.base': 'Project ID must be a number',
+      'number.integer': 'Project ID must be an integer',
+      'number.min': 'Project ID must be at least 1'
+    }),
+  llmAnswer: Joi.string().required().trim().min(1).max(5000)
+    .messages({
+      'string.empty': 'LLM answer is required',
+      'string.min': 'LLM answer must be at least 1 character',
+      'string.max': 'LLM answer cannot exceed 5000 characters'
+    }),
+  rejectionReason: Joi.string().required().trim().min(1).max(500)
+    .messages({
+      'string.empty': 'Rejection reason is required',
+      'string.min': 'Rejection reason must be at least 1 character',
+      'string.max': 'Rejection reason cannot exceed 500 characters'
+    })
+});
+
+const getQuestionGroupsSchema = Joi.object({
+  titleId: Joi.number().required().integer().min(1)
+    .messages({
+      'number.base': 'Title ID must be a number',
+      'number.integer': 'Title ID must be an integer',
+      'number.min': 'Title ID must be at least 1',
+      'any.required': 'Title ID is required'
+    })
+});
+
 module.exports = {
   createTitleSchema,
   createQuestionGroupSchema,
@@ -206,5 +291,9 @@ module.exports = {
   deleteOptionSchema,
   submitAnswerSchema,
   addOptionSchema,
-  updateAnswerSchema
+  updateAnswerSchema,
+  getProjectAnswersSchema,
+  getLlmHistorySchema,
+  saveLlmHistorySchema,
+  getQuestionGroupsSchema
 };
