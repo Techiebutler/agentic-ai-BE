@@ -994,7 +994,7 @@ router.get('/user/answers', verifyToken, getUserAnswers);
 
 /**
  * @swagger
- * /api/user/answers/project/{projectId}:
+ * /api/user/answers/project:
  *   get:
  *     tags: [Questions]
  *     summary: Get user's answers for a specific project
@@ -1143,7 +1143,7 @@ router.get('/user/answers', verifyToken, getUserAnswers);
  *       404:
  *         description: Project not found
  */
-router.get('/user/answers/project/:projectId', verifyToken, getProjectAnswers);
+router.get('/user/answers/project', verifyToken, getProjectAnswers);
 
 /**
  * @swagger

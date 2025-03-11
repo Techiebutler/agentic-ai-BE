@@ -748,8 +748,6 @@ const getProjectAnswers = async (req, res) => {
     let titleId = Number(value.titleId)
     let projectId = Number(value.projectId)
 
-    var { page, limit } = req.query;
-    var { limit, offset } = getPagination(page, limit);
 
     // Validate project exists and user has access
     const project = await db.projects.findOne({
@@ -853,18 +851,16 @@ const getProjectAnswers = async (req, res) => {
     LEFT JOIN answers a ON a."questionId" = q.id AND a."userId" = :userId AND a."projectId" = :projectId
     WHERE t.id = :titleId AND t.status = 1
     GROUP BY t.id, t.name
-    LIMIT :limit OFFSET :offset;
     `;
 
     const result = await db.sequelize.query(rawQuery, {
-      replacements: { userId, projectId, titleId, limit, offset },
+      replacements: { userId, projectId, titleId },
       type: db.sequelize.QueryTypes.SELECT
     });
 
-    const data = getPagingData(result, page, limit);
     return res.status(200).json({
       message: 'Project answers retrieved successfully',
-      data
+      result
     });
 
   } catch (error) {
