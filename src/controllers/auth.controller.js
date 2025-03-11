@@ -100,7 +100,7 @@ const login = async (req, res) => {
     });
 
     if (!user) {
-      return res.status(401).json({ message: 'Invalid email or password' });
+      return res.status(400).json({ message: 'Invalid email or password' });
     }
 
     if (user.status !== 1) {
@@ -113,7 +113,7 @@ const login = async (req, res) => {
 
     const validPassword = await bcrypt.compare(password, user.password);
     if (!validPassword) {
-      return res.status(401).json({ message: 'Invalid email or password' });
+      return res.status(400).json({ message: 'Invalid email or password' });
     }
 
     const { accessToken, refreshToken } = await authService.generateTokens(user);
@@ -146,15 +146,15 @@ const verifyEmail = async (req, res) => {
     const user = await User.findOne({ where: { email } });
 
     if (!user) {
-      return res.status(401).json({ message: 'User not found' });
+      return res.status(400).json({ message: 'User not found' });
     }
 
     if (user.verificationOtp !== otp) {
-      return res.status(401).json({ message: 'Invalid OTP' });
+      return res.status(400).json({ message: 'Invalid OTP' });
     }
 
     if (new Date() > user.otpExpiry) {
-      return res.status(401).json({ message: 'OTP has expired' });
+      return res.status(400).json({ message: 'OTP has expired' });
     }
 
     await user.update({
@@ -221,7 +221,7 @@ const refreshToken = async (req, res) => {
     const accessToken = authService.generateAccessToken(user);
     res.json({ accessToken });
   } catch (error) {
-    res.status(401).json({ message: error.message });
+    res.status(400).json({ message: error.message });
   }
 };
 
@@ -295,7 +295,7 @@ const resetPassword = async (req, res) => {
     });
   } catch (error) {
     console.log("error",error);
-    res.status(401).json({ message: error.message });
+    res.status(400).json({ message: error.message });
   }
 };
 

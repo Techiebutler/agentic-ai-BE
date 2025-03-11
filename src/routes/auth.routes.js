@@ -70,7 +70,7 @@ router.post('/register', register);
  *     responses:
  *       200:
  *         description: Login successful, returns access and refresh tokens
- *       401:
+ *       400:
  *         description: Invalid credentials
  *       403:
  *         description: Email not verified
@@ -101,7 +101,7 @@ router.post('/login', login);
  *     responses:
  *       200:
  *         description: Email verified successfully
- *       401:
+ *       400:
  *         description: Invalid OTP
  */
 router.post('/verify-email', verifyEmail);
@@ -154,7 +154,7 @@ router.post('/resend-verification', resendVerificationOtp);
  *     responses:
  *       200:
  *         description: New access token generated successfully
- *       401:
+ *       400:
  *         description: Invalid refresh token
  */
 router.post('/refresh-token', refreshToken);
@@ -209,7 +209,7 @@ router.post('/forgot-password', forgotPassword);
  *     responses:
  *       200:
  *         description: Password reset successful, returns new access and refresh tokens
- *       401:
+ *       400:
  *         description: Invalid or expired token
  *       404:
  *         description: User not found
