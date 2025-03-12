@@ -10,10 +10,10 @@ const ejs = require('ejs');
 const User = db.users;
 const Role = db.roles;
 
-console.log("process.env.SMTP_HOST",process.env.SMTP_HOST);
-console.log("process.env.SMTP_PORT",process.env.SMTP_PORT);
-console.log("process.env.SMTP_USER",process.env.SMTP_USER);
-console.log("process.env.SMTP_PASS",process.env.SMTP_PASS);
+console.log("process.env.SMTP_HOST", process.env.SMTP_HOST);
+console.log("process.env.SMTP_PORT", process.env.SMTP_PORT);
+console.log("process.env.SMTP_USER", process.env.SMTP_USER);
+console.log("process.env.SMTP_PASS", process.env.SMTP_PASS);
 
 let transporter = nodemailer.createTransport({
   service: process.env.SMTP_HOST,
@@ -118,19 +118,22 @@ const login = async (req, res) => {
 
     const { accessToken, refreshToken } = await authService.generateTokens(user);
 
-    res.json({
-      accessToken,
-      refreshToken,
-      user: {
-        id: user.id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.roleId
+    return res.status(200).json({
+      message: "Login SuccessFull!", data: {
+        accessToken,
+        refreshToken,
+        user: {
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          role: user.roleId
+        }
       }
-    });
+    }
+    );
   } catch (error) {
-    console.log("error",error);
+    console.log("error", error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -213,7 +216,7 @@ const refreshToken = async (req, res) => {
 
     const userData = await authService.verifyRefreshToken(token);
     const user = await User.findByPk(userData.id);
-    
+
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
@@ -259,8 +262,8 @@ const forgotPassword = async (req, res) => {
 const resetPassword = async (req, res) => {
   try {
     const { token, newPassword } = req.body;
-    console.log("token",token);
-    
+    console.log("token", token);
+
     const decoded = await authService.verifyForgotPasswordToken(token);
     const user = await User.findOne({
       where: { id: decoded.id },
@@ -294,7 +297,7 @@ const resetPassword = async (req, res) => {
       }
     });
   } catch (error) {
-    console.log("error",error);
+    console.log("error", error);
     res.status(400).json({ message: error.message });
   }
 };
