@@ -10,10 +10,29 @@ const router = express.Router();
  * /api/admin/user/list:
  *   get:
  *     tags: [Admin]
- *     summary: Get list of all users with pagination (admin only)
+ *     summary: Get list of all users with pagination, search and sorting (admin only)
  *     security:
  *       - bearerAuth: []
  *     parameters:
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search term for firstName, lastName, or email
+ *       - in: query
+ *         name: sortBy
+ *         schema:
+ *           type: string
+ *           enum: [firstName, lastName, email, createdAt]
+ *           default: createdAt
+ *         description: Field to sort by
+ *       - in: query
+ *         name: orderBy
+ *         schema:
+ *           type: string
+ *           enum: [ASC, DESC]
+ *           default: DESC
+ *         description: Sort order (ascending or descending)
  *       - in: query
  *         name: page
  *         schema:
@@ -70,6 +89,8 @@ const router = express.Router();
  *                       type: boolean
  *                     hasPreviousPage:
  *                       type: boolean
+ *       400:
+ *         description: Invalid query parameters
  *       403:
  *         description: Access denied. Admin privileges required.
  */

@@ -175,18 +175,42 @@ const getUsersList = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
+    const search = req.query.search?.trim() || '';
+    const sortBy = req.query.sortBy || 'createdAt';
+    const orderBy = (req.query.orderBy || 'DESC').toUpperCase();
     const offset = (page - 1) * limit;
+
+    // Validate sort parameters
+    const allowedSortFields = ['firstName', 'lastName', 'email', 'createdAt'];
+    const allowedOrderBy = ['ASC', 'DESC'];
+    
+    if (!allowedSortFields.includes(sortBy)) {
+      return res.status(400).json({ message: 'Invalid sortBy parameter' });
+    }
+    if (!allowedOrderBy.includes(orderBy)) {
+      return res.status(400).json({ message: 'Invalid orderBy parameter' });
+    }
+
+    // Build search condition using case-insensitive search
+    const searchCondition = search ? {
+      [db.Sequelize.Op.or]: [
+        { firstName: { [db.Sequelize.Op.iLike]: `%${search}%` } },
+        { lastName: { [db.Sequelize.Op.iLike]: `%${search}%` } },
+        { email: { [db.Sequelize.Op.iLike]: `%${search}%` } }
+      ]
+    } : {};
 
     const { count, rows: users } = await User.findAndCountAll({
       where: {
-        status: DATABASE_STATUS_TYPE.ACTIVE
+        status: DATABASE_STATUS_TYPE.ACTIVE,
+        ...searchCondition
       },
       include: [{
         model: Role,
         attributes: ['name']
       }],
       attributes: { exclude: ['password', 'verificationOtp', 'otpExpiry'] },
-      order: [['createdAt', 'DESC']],
+      order: [[sortBy, orderBy]],
       limit,
       offset
     });
