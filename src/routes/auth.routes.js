@@ -147,9 +147,9 @@ router.post('/resend-verification', resendVerificationOtp);
  *           schema:
  *             type: object
  *             required:
- *               - refreshToken
+ *               - token
  *             properties:
- *               refreshToken:
+ *               token:
  *                 type: string
  *     responses:
  *       200:
