@@ -107,13 +107,13 @@ const login = async (req, res) => {
       return res.status(403).json({ message: 'Account is inactive or blocked' });
     }
 
-    if (!user.isEmailVerified) {
-      return res.status(403).json({ message: 'Please verify your email before logging in' });
-    }
-
     const validPassword = await bcrypt.compare(password, user.password);
     if (!validPassword) {
       return res.status(400).json({ message: 'Invalid email or password' });
+    }
+
+    if (!user.isEmailVerified) {
+      return res.status(403).json({ message: 'Please verify your email before logging in' });
     }
 
     const { accessToken, refreshToken } = await authService.generateTokens(user);
@@ -126,7 +126,7 @@ const login = async (req, res) => {
         email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
-        role: user.role.name
+        role: user.roleId
       }
     });
   } catch (error) {
