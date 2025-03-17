@@ -134,6 +134,16 @@ const getUserProjects = async (req, res) => {
 
     const { count, rows: projects } = await Project.findAndCountAll(query);
 
+    const pagination = {
+      totalItems: count,
+      currentPage: parseInt(page),
+      itemsPerPage: parseInt(limit),
+      totalPages: totalPages,
+      hasNextPage: page < totalPages,
+      hasPreviousPage: page > 1
+    };
+
+
     res.status(200).json({
       projects,
       currentPage: page,
@@ -256,6 +266,7 @@ const getUserProjectsByAdmin = async (req, res) => {
       limit,
       offset
     });
+    
 
     const totalPages = Math.ceil(count / limit);
 
