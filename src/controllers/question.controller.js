@@ -1120,7 +1120,7 @@ const deleteTitle = async (req, res) => {
     const titleId = parseInt(req.params.titleId);
 
     if (!titleId) {
-      return res.status(400).json({ message: 'title Id is required!' })
+      return res.status(400).json({ message: 'Title ID is required!' })
     }
 
     const title = await db.titles.findByPk(titleId);
