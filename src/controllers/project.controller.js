@@ -4,7 +4,7 @@ const { createProjectSchema, updateProjectSchema } = require('../validations/pro
 const Project = db.projects;
 const User = db.users;
 const Role = db.roles;
-const {Op} = require('sequelize');
+const { Op } = require('sequelize');
 
 // User endpoints
 const createProject = async (req, res) => {
@@ -134,22 +134,20 @@ const getUserProjects = async (req, res) => {
 
     const { count, rows: projects } = await Project.findAndCountAll(query);
 
-    const pagination = {
-      totalItems: count,
-      currentPage: parseInt(page),
-      itemsPerPage: parseInt(limit),
-      totalPages: totalPages,
-      hasNextPage: page < totalPages,
-      hasPreviousPage: page > 1
-    };
+    const totalPages = Math.ceil(count / limit);
 
-
-    res.status(200).json({
+    res.json({
       projects,
-      currentPage: page,
-      totalPages: Math.ceil(count / limit),
-      totalItems: count
+      pagination: {
+        totalItems: count,
+        currentPage: page,
+        itemsPerPage: limit,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1
+      }
     });
+
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -196,7 +194,7 @@ const getUsersList = async (req, res) => {
     // Validate sort parameters
     const allowedSortFields = ['firstName', 'lastName', 'email', 'createdAt'];
     const allowedOrderBy = ['ASC', 'DESC'];
-    
+
     if (!allowedSortFields.includes(sortBy)) {
       return res.status(400).json({ message: 'Invalid sortBy parameter' });
     }
@@ -251,22 +249,29 @@ const getUserProjectsByAdmin = async (req, res) => {
     const { user_id } = req.params;
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
+    const search = req.query.search?.trim() || '';
+    const sortBy = req.query.sortBy || 'createdAt';
+    const orderBy = (req.query.orderBy || 'DESC').toUpperCase();
     const offset = (page - 1) * limit;
 
     const { count, rows: projects } = await Project.findAndCountAll({
       where: {
         userId: user_id,
-        status: DATABASE_STATUS_TYPE.ACTIVE
+        status: DATABASE_STATUS_TYPE.ACTIVE,
+        [Op.or]: [
+          { name: { [Op.iLike]: `%${search}%` } },
+          { description: { [Op.iLike]: `%${search}%` } }
+        ]
       },
       include: [{
         model: User,
         attributes: { exclude: ['password', 'verificationOtp', 'otpExpiry'] }
       }],
-      order: [['createdAt', 'DESC']],
+      order: [[sortBy, orderBy]],
       limit,
       offset
     });
-    
+
 
     const totalPages = Math.ceil(count / limit);
 
@@ -384,7 +389,7 @@ module.exports = {
   getProjectDetails,
   getUserProjects,
   deleteProject,
-  
+
   // Admin endpoints
   getUsersList,
   getUserProjectsByAdmin,
