@@ -72,6 +72,25 @@ router.post('/create', verifyToken, createProject);
  *       - bearerAuth: []
  *     parameters:
  *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search term for project name or description
+ *       - in: query
+ *         name: sortBy
+ *         schema:
+ *           type: string
+ *           enum: [name, description, createdAt]
+ *           default: createdAt
+ *         description: Field to sort by
+ *       - in: query
+ *         name: orderBy
+ *         schema:
+ *           type: string
+ *           enum: [ASC, DESC]
+ *           default: DESC
+ *         description: Sort order (ascending or descending)
+ *       - in: query
  *         name: page
  *         schema:
  *           type: integer

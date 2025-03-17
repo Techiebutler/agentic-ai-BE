@@ -4,6 +4,7 @@ const { createProjectSchema, updateProjectSchema } = require('../validations/pro
 const Project = db.projects;
 const User = db.users;
 const Role = db.roles;
+const {Op} = require('sequelize');
 
 // User endpoints
 const createProject = async (req, res) => {

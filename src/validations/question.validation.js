@@ -282,6 +282,21 @@ const getQuestionGroupsSchema = Joi.object({
     })
 });
 
+const updateQuestionSchema = Joi.object({
+  questionText: Joi.string().min(3).optional(),
+  questionType: Joi.string().valid('text', 'radio', 'select', 'checkbox', 'llm').optional(),
+  isRequired: Joi.boolean().optional()
+}).min(1);
+
+const updateTitleSchema = Joi.object({
+  name: Joi.string().min(3).max(100).optional(),
+  description: Joi.string().min(10).max(500).optional()
+}).min(1);
+
+const deleteTitleSchema = Joi.object({
+  id: Joi.number().integer().positive().required()
+});
+
 module.exports = {
   createTitleSchema,
   createQuestionGroupSchema,
@@ -295,5 +310,8 @@ module.exports = {
   getProjectAnswersSchema,
   getLlmHistorySchema,
   saveLlmHistorySchema,
-  getQuestionGroupsSchema
+  getQuestionGroupsSchema,
+  updateQuestionSchema,
+  updateTitleSchema,
+  deleteTitleSchema
 };

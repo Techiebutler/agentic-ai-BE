@@ -12,9 +12,12 @@ const {
   getProjectAnswersSchema,
   getLlmHistorySchema,
   saveLlmHistorySchema,
-  getQuestionGroupsSchema
+  getQuestionGroupsSchema,
+  updateQuestionSchema,
+  updateTitleSchema
 } = require('../validations/question.validation');
 const { getPagination, getPagingData } = require('../utils/pagination');
+const {Op} = require('sequelize');
 
 // Admin Controllers
 const createTitle = async (req, res) => {
@@ -138,77 +141,76 @@ const getQuestionsByTitle = async (req, res) => {
     }
 
     const result = await db.sequelize.query(`
-    SELECT 
-    t.id AS titleId,
-    t.name AS title_name,
-    COALESCE(
-        JSONB_AGG(
-            DISTINCT JSONB_BUILD_OBJECT(  -- Ensures unique group objects
-                'groupId', g.id,
-                'group_name', g.name,
-                'questions', (
-                    SELECT COALESCE(
-                        JSONB_AGG(
-                            JSONB_BUILD_OBJECT(
-                                'questionId', q.id,
-                                'questionText', q."questionText",
-                                'questionType', q."questionType",
-                                'options', (
-                                    SELECT COALESCE(
-                                        JSONB_AGG(
-                                            JSONB_BUILD_OBJECT(
-                                                'option_id', o.id,
-                                                'optionText', o."optionText"
-                                            )
-                                        ) FILTER (WHERE o.id IS NOT NULL), '[]'::JSONB
-                                    )
-                                    FROM options o
-                                    WHERE o."questionId" = q.id
-                                )
-                            )
-                        ) FILTER (WHERE q.id IS NOT NULL), '[]'::JSONB
-                    )
-                    FROM questions q
-                    WHERE q."groupId" = g.id
-                )
-            )
-        ) FILTER (WHERE g.id IS NOT NULL), '[]'::JSONB
-    ) AS grouped_questions,
-    COALESCE(
-        JSONB_AGG(
-            DISTINCT JSONB_BUILD_OBJECT(
-                'questionId', uq.id,
-                'questionText', uq."questionText",
-                'questionType', uq."questionType",
-                'options', (
-                    SELECT COALESCE(
-                        JSONB_AGG(
-                            JSONB_BUILD_OBJECT(
-                                'option_id', o.id,
-                                'optionText', o."optionText"
-                            )
-                        ) FILTER (WHERE o.id IS NOT NULL), '[]'::JSONB
-                    )
-                    FROM options o
-                    WHERE o."questionId" = uq.id
-                )
-            )
-        ) FILTER (WHERE uq.id IS NOT NULL), '[]'::JSONB
-    ) AS ungrouped_questions
-FROM titles t
-LEFT JOIN question_groups g ON g."titleId" = t.id
-LEFT JOIN questions uq ON uq."titleId" = t.id AND uq."groupId" IS NULL  -- Ensures uq is available for ungrouped_questions
-WHERE t.id = :titleId AND t.status = 1
-GROUP BY t.id, t.name
-    `, {
+      SELECT 
+          t.id AS titleId,
+          t.name AS title_name,
+          COALESCE(
+              JSONB_AGG(
+                  DISTINCT JSONB_BUILD_OBJECT(  
+                      'groupId', g.id,
+                      'group_name', g.name,
+                      'questions', (
+                          SELECT COALESCE(
+                              JSONB_AGG(
+                                  JSONB_BUILD_OBJECT(
+                                      'questionId', q.id,
+                                      'questionText', q."questionText",
+                                      'questionType', q."questionType",
+                                      'options', (
+                                          SELECT COALESCE(
+                                              JSONB_AGG(
+                                                  JSONB_BUILD_OBJECT(
+                                                      'option_id', o.id,
+                                                      'optionText', o."optionText"
+                                                  )
+                                              ) FILTER (WHERE o.id IS NOT NULL), '[]'::JSONB
+                                          )
+                                          FROM options o
+                                          WHERE o."questionId" = q.id
+                                      )
+                                  )
+                              ) FILTER (WHERE q.id IS NOT NULL), '[]'::JSONB
+                          )
+                          FROM questions q
+                          WHERE q."groupId" = g.id
+                      )
+                  )
+              ) FILTER (WHERE g.id IS NOT NULL), '[]'::JSONB
+          ) AS grouped_questions,
+          COALESCE(
+              JSONB_AGG(
+                  DISTINCT JSONB_BUILD_OBJECT(
+                      'questionId', uq.id,
+                      'questionText', uq."questionText",
+                      'questionType', uq."questionType",
+                      'options', (
+                          SELECT COALESCE(
+                              JSONB_AGG(
+                                  JSONB_BUILD_OBJECT(
+                                      'option_id', o.id,
+                                      'optionText', o."optionText"
+                                  )
+                              ) FILTER (WHERE o.id IS NOT NULL), '[]'::JSONB
+                          )
+                          FROM options o
+                          WHERE o."questionId" = uq.id
+                      )
+                  )
+              ) FILTER (WHERE uq.id IS NOT NULL), '[]'::JSONB
+          ) AS ungrouped_questions
+      FROM titles t
+      LEFT JOIN question_groups g ON g."titleId" = t.id
+      LEFT JOIN questions uq ON uq."titleId" = t.id AND uq."groupId" IS NULL  
+      WHERE t.id = :titleId AND t.status = 1
+      GROUP BY t.id, t.name
+  `, {
       replacements: { titleId },
       type: db.sequelize.QueryTypes.SELECT
-    });
+  });
 
-
-    res.json({
-      result,
-      title: {
+  res.json({
+    result,
+    title: {
         id: title.id,
         name: title.name,
         description: title.description
@@ -1019,6 +1021,142 @@ const getAllQuestionGroups = async (req, res) => {
   }
 };
 
+const updateQuestion = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const questionId = parseInt(req.params.questionId);
+    
+    const { error, value } = updateQuestionSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({ message: error.details[0].message });
+    }
+
+    // Find question with its options
+    const question = await db.questions.findByPk(questionId, {
+      include: [{
+        model: db.options,
+        attributes: ['id', 'optionText']
+      }]
+    });
+
+    if (!question) {
+      return res.status(404).json({ message: 'Question not found' });
+    }
+
+    // Validate type change compatibility
+    if (value.questionType && value.questionType !== question.questionType) {
+      const hasOptions = question.options && question.options.length > 0;
+      
+      // If changing from option-based type to text/llm
+      if (['text', 'llm'].includes(value.questionType) && hasOptions) {
+        return res.status(400).json({ 
+          message: 'Cannot change to text/llm type while options exist. Delete options first.' 
+        });
+      }
+      
+      // If changing between option-based types (radio/select/checkbox), it's allowed
+      const optionBasedTypes = ['radio', 'select', 'checkbox'];
+      if (!optionBasedTypes.includes(value.questionType) && hasOptions) {
+        return res.status(400).json({ 
+          message: 'Invalid type change. Question has options.' 
+        });
+      }
+    }
+
+    // Update the question
+    await question.update({
+      ...value,
+      updatedBy: userId
+    });
+
+    // Fetch updated question with options
+    const updatedQuestion = await db.questions.findByPk(questionId, {
+      include: [{
+        model: db.options,
+        attributes: ['id', 'optionText']
+      }]
+    });
+
+    res.json({
+      message: 'Question updated successfully',
+      data: updatedQuestion
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const updateTitle = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const titleId = parseInt(req.params.titleId);
+    
+    const { error, value } = updateTitleSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({ message: error.details[0].message });
+    }
+
+    const title = await db.titles.findByPk(titleId);
+    if (!title) {
+      return res.status(404).json({ message: 'Title not found' });
+    }
+
+    // Check if title has associated questions
+    const questions = await db.questions.findOne({ where: { titleId } });
+    if (questions) {
+      // If title has questions, only allow description update
+      if (value.name) {
+        return res.status(400).json({ 
+          message: 'Cannot update title name when questions exist. Only description can be updated.' 
+        });
+      }
+    }
+
+    await title.update({
+      ...value,
+      updatedBy: userId
+    });
+
+    res.json({
+      message: 'Title updated successfully',
+      data: title
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const deleteTitle = async (req, res) => {
+  try {
+    const titleId = parseInt(req.params.titleId);
+
+    const title = await db.titles.findByPk(titleId);
+    if (!title) {
+      return res.status(404).json({ message: 'Title not found' });
+    }
+
+    // Check if title has any associated questions or groups
+    const [questions, groups] = await Promise.all([
+      db.questions.findOne({ where: { titleId } }),
+      db.questionGroups.findOne({ where: { titleId } })
+    ]);
+
+    if (questions || groups) {
+      return res.status(400).json({ 
+        message: 'Cannot delete title. Delete all associated questions and groups first.' 
+      });
+    }
+
+    await title.destroy();
+
+    res.json({
+      message: 'Title deleted successfully'
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   createTitle,
   createQuestionGroup,
@@ -1036,5 +1174,8 @@ module.exports = {
   getProjectAnswers,
   getLlmHistory,
   saveLlmHistory,
-  getAllQuestionGroups
+  getAllQuestionGroups,
+  updateQuestion,
+  updateTitle,
+  deleteTitle
 };

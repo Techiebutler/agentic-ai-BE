@@ -18,7 +18,10 @@ const {
   getProjectAnswers,
   saveLlmHistory,
   getLlmHistory,
-  getAllQuestionGroups
+  getAllQuestionGroups,
+  updateQuestion,
+  updateTitle,
+  deleteTitle
 } = require('../controllers/question.controller');
 
 const router = express.Router();
@@ -62,6 +65,104 @@ const router = express.Router();
  *         description: Access denied. Admin privileges required.
  */
 router.post('/admin/title/create', verifyToken, isAdmin, createTitle);
+
+/**
+ * @swagger
+ * /api/admin/title/{titleId}:
+ *   put:
+ *     tags: [Questions]
+ *     summary: Update a title (admin only)
+ *     description: Update name and/or description of a title. Name can only be updated if no questions exist.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: titleId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID of the title to update
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 minLength: 3
+ *                 maxLength: 100
+ *               description:
+ *                 type: string
+ *                 minLength: 10
+ *                 maxLength: 500
+ *     responses:
+ *       200:
+ *         description: Title updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Title updated successfully
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *                     name:
+ *                       type: string
+ *                     description:
+ *                       type: string
+ *                     status:
+ *                       type: integer
+ *       400:
+ *         description: Invalid input or title has associated questions (when updating name)
+ *       403:
+ *         description: Access denied. Admin privileges required.
+ *       404:
+ *         description: Title not found
+ */
+router.put('/admin/title/:titleId', verifyToken, isAdmin, updateTitle);
+
+/**
+ * @swagger
+ * /api/admin/title/{titleId}:
+ *   delete:
+ *     tags: [Questions]
+ *     summary: Delete a title (admin only)
+ *     description: Delete a title. Only possible if no questions or groups are associated with it.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: titleId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID of the title to delete
+ *     responses:
+ *       200:
+ *         description: Title deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Title deleted successfully
+ *       400:
+ *         description: Cannot delete title with associated questions or groups
+ *       403:
+ *         description: Access denied. Admin privileges required.
+ *       404:
+ *         description: Title not found
+ */
+router.delete('/admin/title/:titleId', verifyToken, isAdmin, deleteTitle);
 
 /**
  * @swagger
@@ -295,6 +396,68 @@ router.get('/admin/question-groups/:titleId', verifyToken, isAdmin, getAllQuesti
  *         description: Server error
  */
 router.post('/admin/question/create', verifyToken, isAdmin, createQuestion);
+
+/**
+ * @swagger
+ * /api/admin/question/{questionId}:
+ *   put:
+ *     tags: [Questions]
+ *     summary: Update a question (admin only)
+ *     description: Update questionText, questionType, and/or isRequired fields of a question. Type changes are validated based on existing options.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: questionId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID of the question to update
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               questionText:
+ *                 type: string
+ *                 minLength: 3
+ *               questionType:
+ *                 type: string
+ *                 enum: [text, radio, select, checkbox, llm]
+ *               isRequired:
+ *                 type: boolean
+ *     responses:
+ *       200:
+ *         description: Question updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Question updated successfully
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *                     questionText:
+ *                       type: string
+ *                     questionType:
+ *                       type: string
+ *                     isRequired:
+ *                       type: boolean
+ *       400:
+ *         description: Invalid input or incompatible type change
+ *       403:
+ *         description: Access denied. Admin privileges required.
+ *       404:
+ *         description: Question not found
+ */
+router.put('/admin/question/:questionId', verifyToken, isAdmin, updateQuestion);
 
 /**
  * @swagger
