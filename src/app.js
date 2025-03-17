@@ -38,6 +38,9 @@ const swaggerOptions = {
     servers: [
       {
         url: 'http://localhost:3000'
+      },
+      {
+        url: 'https://agentic-ai-be-1.onrender.com'
       }
     ]
   },

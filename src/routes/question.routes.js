@@ -31,6 +31,9 @@ const router = express.Router();
  * tags:
  *   name: Questions
  *   description: Question management endpoints
+ * servers:
+ *   url: https://agentic-ai-be-1.onrender.com
+ *   description: Deployed production server
  */
 /**
  * @swagger
