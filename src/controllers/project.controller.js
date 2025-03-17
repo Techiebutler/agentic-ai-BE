@@ -105,37 +105,39 @@ const getProjectDetails = async (req, res) => {
 
 const getUserProjects = async (req, res) => {
   try {
-    const userId = req.user.id;
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
+    const search = req.query.search || '';
+    const sortBy = req.query.sortBy || 'createdAt';
+    const orderBy = req.query.orderBy?.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+
     const offset = (page - 1) * limit;
 
-    const { count, rows: projects } = await Project.findAndCountAll({
+    const query = {
       where: {
-        userId,
-        status: DATABASE_STATUS_TYPE.ACTIVE
+        userId: req.user.id,
+        status: DATABASE_STATUS_TYPE.ACTIVE,
+        [Op.or]: [
+          { name: { [Op.iLike]: `%${search}%` } },
+          { description: { [Op.iLike]: `%${search}%` } }
+        ]
       },
+      limit,
+      offset,
+      order: [[sortBy, orderBy]],
       include: [{
         model: User,
-        attributes: { exclude: ['password', 'otpExpiry','isEmailVerified','verificationOtp'] }
-      }],
-      order: [['createdAt', 'DESC']],
-      limit,
-      offset
-    });
+        attributes: { exclude: ['password', 'verificationOtp', 'otpExpiry'] }
+      }]
+    };
 
-    const totalPages = Math.ceil(count / limit);
+    const { count, rows: projects } = await Project.findAndCountAll(query);
 
-    res.json({
+    res.status(200).json({
       projects,
-      pagination: {
-        totalItems: count,
-        currentPage: page,
-        itemsPerPage: limit,
-        totalPages,
-        hasNextPage: page < totalPages,
-        hasPreviousPage: page > 1
-      }
+      currentPage: page,
+      totalPages: Math.ceil(count / limit),
+      totalItems: count
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
