@@ -13,7 +13,6 @@ const {
   deleteOption,
   addOption,
   getAllTitles,
-  getAllQuestions,
   updateAnswer,
   getProjectAnswers,
   saveLlmHistory,
