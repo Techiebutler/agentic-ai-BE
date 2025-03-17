@@ -17,7 +17,7 @@ const {
   updateTitleSchema
 } = require('../validations/question.validation');
 const { getPagination, getPagingData } = require('../utils/pagination');
-const {Op} = require('sequelize');
+const { Op } = require('sequelize');
 
 // Admin Controllers
 const createTitle = async (req, res) => {
@@ -206,11 +206,11 @@ const getQuestionsByTitle = async (req, res) => {
   `, {
       replacements: { titleId },
       type: db.sequelize.QueryTypes.SELECT
-  });
+    });
 
-  res.json({
-    result,
-    title: {
+    res.json({
+      result,
+      title: {
         id: title.id,
         name: title.name,
         description: title.description
@@ -916,7 +916,7 @@ const getLlmHistory = async (req, res) => {
     });
 
     const data = getPagingData(history.rows, page, limit, history.count);
-    
+
     return res.status(200).json({
       message: 'LLM history retrieved successfully',
       data
@@ -1025,7 +1025,7 @@ const updateQuestion = async (req, res) => {
   try {
     const userId = req.user.id;
     const questionId = parseInt(req.params.questionId);
-    
+
     const { error, value } = updateQuestionSchema.validate(req.body);
     if (error) {
       return res.status(400).json({ message: error.details[0].message });
@@ -1046,19 +1046,19 @@ const updateQuestion = async (req, res) => {
     // Validate type change compatibility
     if (value.questionType && value.questionType !== question.questionType) {
       const hasOptions = question.options && question.options.length > 0;
-      
+
       // If changing from option-based type to text/llm
       if (['text', 'llm'].includes(value.questionType) && hasOptions) {
-        return res.status(400).json({ 
-          message: 'Cannot change to text/llm type while options exist. Delete options first.' 
+        return res.status(400).json({
+          message: 'Cannot change to text/llm type while options exist. Delete options first.'
         });
       }
-      
+
       // If changing between option-based types (radio/select/checkbox), it's allowed
       const optionBasedTypes = ['radio', 'select', 'checkbox'];
       if (!optionBasedTypes.includes(value.questionType) && hasOptions) {
-        return res.status(400).json({ 
-          message: 'Invalid type change. Question has options.' 
+        return res.status(400).json({
+          message: 'Invalid type change. Question has options.'
         });
       }
     }
@@ -1090,7 +1090,7 @@ const updateTitle = async (req, res) => {
   try {
     const userId = req.user.id;
     const titleId = parseInt(req.params.titleId);
-    
+
     const { error, value } = updateTitleSchema.validate(req.body);
     if (error) {
       return res.status(400).json({ message: error.details[0].message });
@@ -1119,6 +1119,10 @@ const deleteTitle = async (req, res) => {
   try {
     const titleId = parseInt(req.params.titleId);
 
+    if (!titleId) {
+      return res.status(400).json({ message: 'title Id is required!' })
+    }
+
     const title = await db.titles.findByPk(titleId);
     if (!title) {
       return res.status(404).json({ message: 'Title not found' });
@@ -1131,8 +1135,8 @@ const deleteTitle = async (req, res) => {
     ]);
 
     if (questions || groups) {
-      return res.status(400).json({ 
-        message: 'Cannot delete title. Delete all associated questions and groups first.' 
+      return res.status(400).json({
+        message: 'Cannot delete title. Delete all associated questions and groups first.'
       });
     }
 
