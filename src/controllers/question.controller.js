@@ -1101,17 +1101,6 @@ const updateTitle = async (req, res) => {
       return res.status(404).json({ message: 'Title not found' });
     }
 
-    // Check if title has associated questions
-    const questions = await db.questions.findOne({ where: { titleId } });
-    if (questions) {
-      // If title has questions, only allow description update
-      if (value.name) {
-        return res.status(400).json({ 
-          message: 'Cannot update title name when questions exist. Only description can be updated.' 
-        });
-      }
-    }
-
     await title.update({
       ...value,
       updatedBy: userId
