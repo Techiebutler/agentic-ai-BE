@@ -847,7 +847,7 @@ router.get('/questions/:titleId', verifyToken, getQuestionsByTitle);
  * /api/questions:
  *   get:
  *     tags: [Questions]
- *     summary: Get questions by title with user's answers
+ *     summary: Get All questions
  *     security:
  *       - bearerAuth: []
  *     responses:
