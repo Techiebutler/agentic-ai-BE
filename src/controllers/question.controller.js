@@ -589,63 +589,6 @@ const getAllTitles = async (req, res) => {
   }
 };
 
-const getAllQuestions = async (req, res) => {
-  try {
-    var { page, limit } = req.query;
-    var { limit, offset } = getPagination(page, limit);
-
-    const questions = await db.questions.findAndCountAll({
-      attributes: ['id', 'questionText', 'questionType'],
-      include: [
-        {
-          model: db.titles,
-          attributes: ['id', 'name'],
-          required: true
-        },
-        {
-          model: db.questionGroups,
-          attributes: ['id', 'name'],
-          required: false
-        },
-        {
-          model: db.options,
-          attributes: ['id', 'optionText'],
-          required: false
-        }
-      ],
-      limit: limit,
-      offset: offset
-    });
-
-    const result = getPagingData(
-      questions.rows.map(question => ({
-        questionId: question.id,
-        questionText: question.questionText,
-        questionType: question.questionType,
-        title: {
-          id: question.title.id,
-          name: question.title.name
-        },
-        group: question.question_group ? {
-          id: question.question_group.id,
-          name: question.question_group.name
-        } : null,
-        options: question.options.map(option => ({
-          id: option.id,
-          optionText: option.optionText
-        }))
-      })),
-      page,
-      limit,
-      questions.count
-    );
-
-    return res.status(200).json(result);
-  } catch (error) {
-    return res.status(500).json({ message: error.message });
-  }
-};
-
 const updateAnswer = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -1150,6 +1093,84 @@ const deleteTitle = async (req, res) => {
   }
 };
 
+const getQuestionsWithTitles = async (req, res) => {
+  try {
+    const result = await db.sequelize.query(`
+      SELECT 
+          t.id AS "titleId",
+          t.name AS "title_name",
+          COALESCE(
+              JSONB_AGG(
+                  DISTINCT JSONB_BUILD_OBJECT(  
+                      'groupId', g.id,
+                      'group_name', g.name,
+                      'questions', (
+                          SELECT COALESCE(
+                              JSONB_AGG(
+                                  JSONB_BUILD_OBJECT(
+                                      'questionId', q.id,
+                                      'questionText', q."questionText",
+                                      'questionType', q."questionType",
+                                      'options', (
+                                          SELECT COALESCE(
+                                              JSONB_AGG(
+                                                  JSONB_BUILD_OBJECT(
+                                                      'option_id', o.id,
+                                                      'optionText', o."optionText"
+                                                  )
+                                              ) FILTER (WHERE o.id IS NOT NULL), '[]'::JSONB
+                                          )
+                                          FROM options o
+                                          WHERE o."questionId" = q.id
+                                      )
+                                  )
+                              ) FILTER (WHERE q.id IS NOT NULL), '[]'::JSONB
+                          )
+                          FROM questions q
+                          WHERE q."groupId" = g.id
+                      )
+                  )
+              ) FILTER (WHERE g.id IS NOT NULL), '[]'::JSONB
+          ) AS grouped_questions,
+          COALESCE(
+              JSONB_AGG(
+                  DISTINCT JSONB_BUILD_OBJECT(
+                      'questionId', uq.id,
+                      'questionText', uq."questionText",
+                      'questionType', uq."questionType",
+                      'options', (
+                          SELECT COALESCE(
+                              JSONB_AGG(
+                                  JSONB_BUILD_OBJECT(
+                                      'option_id', o.id,
+                                      'optionText', o."optionText"
+                                  )
+                              ) FILTER (WHERE o.id IS NOT NULL), '[]'::JSONB
+                          )
+                          FROM options o
+                          WHERE o."questionId" = uq.id
+                      )
+                  )
+              ) FILTER (WHERE uq.id IS NOT NULL), '[]'::JSONB
+          ) AS ungrouped_questions
+      FROM titles t
+      LEFT JOIN question_groups g ON g."titleId" = t.id
+      LEFT JOIN questions uq ON uq."titleId" = t.id AND uq."groupId" IS NULL  
+      WHERE t.status = 1
+      GROUP BY t.id, t.name
+  `, {
+      type: db.sequelize.QueryTypes.SELECT
+    });
+
+    res.status(200).json({
+      result
+    });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   createTitle,
   createQuestionGroup,
@@ -1162,7 +1183,6 @@ module.exports = {
   deleteOption,
   addOption,
   getAllTitles,
-  getAllQuestions,
   updateAnswer,
   getProjectAnswers,
   getLlmHistory,
@@ -1170,5 +1190,6 @@ module.exports = {
   getAllQuestionGroups,
   updateQuestion,
   updateTitle,
-  deleteTitle
+  deleteTitle,
+  getQuestionsWithTitles
 };

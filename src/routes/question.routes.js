@@ -21,7 +21,8 @@ const {
   getAllQuestionGroups,
   updateQuestion,
   updateTitle,
-  deleteTitle
+  deleteTitle,
+  getQuestionsWithTitles
 } = require('../controllers/question.controller');
 
 const router = express.Router();
@@ -843,29 +844,12 @@ router.get('/questions/:titleId', verifyToken, getQuestionsByTitle);
 
 /**
  * @swagger
- * /api/admin/questions:
+ * /api/questions:
  *   get:
  *     tags: [Questions]
- *     summary: Get all questions with their titles and groups (admin only)
- *     description: Retrieves all questions with their associated titles, groups, and options, with pagination
+ *     summary: Get questions by title with user's answers
  *     security:
  *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: page
- *         schema:
- *           type: integer
- *           minimum: 1
- *           default: 1
- *         description: Page number
- *       - in: query
- *         name: size
- *         schema:
- *           type: integer
- *           minimum: 1
- *           maximum: 100
- *           default: 10
- *         description: Items per page
  *     responses:
  *       200:
  *         description: Questions retrieved successfully
@@ -879,71 +863,65 @@ router.get('/questions/:titleId', verifyToken, getQuestionsByTitle);
  *                   items:
  *                     type: object
  *                     properties:
- *                       questionId:
+ *                       titleId:
  *                         type: integer
- *                         example: 1
- *                       questionText:
+ *                       title_name:
  *                         type: string
- *                         example: "What is your weight?"
- *                       questionType:
- *                         type: string
- *                         enum: [text, radio, select, checkbox]
- *                         example: "select"
- *                       title:
- *                         type: object
- *                         properties:
- *                           id:
- *                             type: integer
- *                             example: 1
- *                           name:
- *                             type: string
- *                             example: "Diet Plan"
- *                       group:
- *                         type: object
- *                         nullable: true
- *                         properties:
- *                           id:
- *                             type: integer
- *                             example: 1
- *                           name:
- *                             type: string
- *                             example: "Basic Information"
- *                       options:
+ *                       grouped_questions:
  *                         type: array
  *                         items:
  *                           type: object
  *                           properties:
- *                             id:
+ *                             groupId:
  *                               type: integer
- *                               example: 1
- *                             optionText:
+ *                             group_name:
  *                               type: string
- *                               example: "50-60 kg"
- *                 pagination:
- *                   type: object
- *                   properties:
- *                     totalItems:
- *                       type: integer
- *                       example: 50
- *                     itemsPerPage:
- *                       type: integer
- *                       example: 10
- *                     currentPage:
- *                       type: integer
- *                       example: 1
- *                     totalPages:
- *                       type: integer
- *                       example: 5
- *                     hasNextPage:
- *                       type: boolean
- *                       example: true
- *                     hasPreviousPage:
- *                       type: boolean
- *                       example: false
- *       403:
- *         description: Access denied. Admin privileges required.
+ *                             questions:
+ *                               type: array
+ *                               items:
+ *                                 type: object
+ *                                 properties:
+ *                                   questionId:
+ *                                     type: integer
+ *                                   questionText:
+ *                                     type: string
+ *                                   questionType:
+ *                                     type: string
+ *                                     enum: [text, radio, select, checkbox]
+ *                                   options:
+ *                                     type: array
+ *                                     items:
+ *                                       type: object
+ *                                       properties:
+ *                                         option_id:
+ *                                           type: integer
+ *                                         optionText:
+ *                                           type: string
+ *                       ungrouped_questions:
+ *                         type: array
+ *                         items:
+ *                           type: object
+ *                           properties:
+ *                             questionId:
+ *                               type: integer
+ *                             questionText:
+ *                               type: string
+ *                             questionType:
+ *                               type: string
+ *                               enum: [text, radio, select, checkbox]
+ *                             options:
+ *                               type: array
+ *                               items:
+ *                                 type: object
+ *                                 properties:
+ *                                   option_id:
+ *                                     type: integer
+ *                                   optionText:
+ *                                     type: string
+ *       404:
+ *         description: Title not found
  */
-router.get('/admin/questions', verifyToken, isAdmin, getAllQuestions);
+router.get('/questions', verifyToken, getQuestionsWithTitles);
 
 /**
  * @swagger
