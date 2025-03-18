@@ -16,7 +16,8 @@ const {
   updateQuestionSchema,
   updateTitleSchema,
   updateQuestionGroupSchema,
-  deleteQuestionGroupSchema
+  deleteQuestionGroupSchema,
+  getQuestionDetailsSchema
 } = require('../validations/question.validation');
 const { getPagination, getPagingData } = require('../utils/pagination');
 const { Op } = require('sequelize');
@@ -1238,6 +1239,63 @@ const deleteQuestionGroup = async (req, res) => {
   }
 };
 
+const getQuestionDetails = async (req, res) => {
+  try {
+    const { questionId } = req.params;
+    const { error } = getQuestionDetailsSchema.validate({ questionId: parseInt(questionId) });
+    if (error) {
+      return res.status(400).json({ message: error.details[0].message });
+    }
+
+    const question = await db.questions.findOne({
+      where: { 
+        id: questionId,
+        status: DATABASE_STATUS_TYPE.ACTIVE 
+      },
+      include: [
+        {
+          model: db.titles,
+          attributes: ['id', 'name']
+        },
+        {
+          model: db.questionGroups,
+          attributes: ['id', 'name']
+        },
+        {
+          model: db.options,
+          attributes: ['id', 'optionText'],
+          where: { status: DATABASE_STATUS_TYPE.ACTIVE },
+          required: false
+        }
+      ]
+    });
+
+    if (!question) {
+      return res.status(404).json({ message: 'Question not found' });
+    }
+
+    const response = {
+      id: question.id,
+      questionText: question.questionText,
+      questionType: question.questionType,
+      isRequired: question.isRequired,
+      title: question.title,
+      group: question.questionGroup,
+      options: question.options || [],
+      createdAt: question.createdAt,
+      updatedAt: question.updatedAt
+    };
+
+    res.status(200).json({
+      message: 'Question details retrieved successfully',
+      question: response
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
 module.exports = {
   createTitle,
   createQuestionGroup,
@@ -1260,5 +1318,6 @@ module.exports = {
   deleteTitle,
   getQuestionsWithTitles,
   updateQuestionGroup,
-  deleteQuestionGroup
+  deleteQuestionGroup,
+  getQuestionDetails
 };

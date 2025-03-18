@@ -23,7 +23,8 @@ const {
   deleteTitle,
   getQuestionsWithTitles,
   updateQuestionGroup,
-  deleteQuestionGroup
+  deleteQuestionGroup,
+  getQuestionDetails
 } = require('../controllers/question.controller');
 
 const router = express.Router();
@@ -510,6 +511,96 @@ router.get('/admin/question-groups/:titleId', verifyToken, isAdmin, getAllQuesti
  *         description: Server error
  */
 router.post('/admin/question/create', verifyToken, isAdmin, createQuestion);
+
+/**
+ * @swagger
+ * /api/admin/question/{questionId}:
+ *   get:
+ *     tags: [Questions]
+ *     summary: Get question details by ID
+ *     description: Retrieve detailed information about a specific question including its title, group, and options (if applicable)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: questionId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID of the question to retrieve
+ *     responses:
+ *       200:
+ *         description: Question details retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Question details retrieved successfully
+ *                 question:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *                       example: 1
+ *                     questionText:
+ *                       type: string
+ *                       example: What is your diet preference?
+ *                     questionType:
+ *                       type: string
+ *                       enum: [text, radio, select, checkbox, llm]
+ *                       example: radio
+ *                     isRequired:
+ *                       type: boolean
+ *                       example: true
+ *                     title:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: integer
+ *                           example: 1
+ *                         name:
+ *                           type: string
+ *                           example: Diet Plan
+ *                     group:
+ *                       type: object
+ *                       nullable: true
+ *                       properties:
+ *                         id:
+ *                           type: integer
+ *                           example: 1
+ *                         name:
+ *                           type: string
+ *                           example: Dietary Preferences
+ *                     options:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: integer
+ *                             example: 1
+ *                           optionText:
+ *                             type: string
+ *                             example: Vegetarian
+ *                     createdAt:
+ *                       type: string
+ *                       format: date-time
+ *                     updatedAt:
+ *                       type: string
+ *                       format: date-time
+ *       400:
+ *         description: Invalid question ID
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Question not found
+ *       500:
+ *         description: Server error
+ */
+router.get('/admin/question/:questionId', verifyToken, isAdmin, getQuestionDetails);
 
 /**
  * @swagger

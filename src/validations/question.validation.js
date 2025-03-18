@@ -315,6 +315,16 @@ const deleteQuestionGroupSchema = Joi.object({
     })
 });
 
+const getQuestionDetailsSchema = Joi.object({
+  questionId: Joi.number().integer().required().min(1)
+    .messages({
+      'number.base': 'Question ID must be a number',
+      'number.integer': 'Question ID must be an integer',
+      'number.min': 'Question ID must be at least 1',
+      'any.required': 'Question ID is required'
+    })
+});
+
 module.exports = {
   createTitleSchema,
   createQuestionGroupSchema,
@@ -333,5 +343,6 @@ module.exports = {
   updateTitleSchema,
   updateQuestionGroupSchema,
   deleteQuestionGroupSchema,
+  getQuestionDetailsSchema,
   deleteTitleSchema
 };
