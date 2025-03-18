@@ -21,7 +21,9 @@ const {
   updateQuestion,
   updateTitle,
   deleteTitle,
-  getQuestionsWithTitles
+  getQuestionsWithTitles,
+  updateQuestionGroup,
+  deleteQuestionGroup
 } = require('../controllers/question.controller');
 
 const router = express.Router();
@@ -243,6 +245,115 @@ router.get('/titles', verifyToken, isAdmin, getAllTitles);
  *         description: Title not found
  */
 router.post('/admin/question-group/create', verifyToken, isAdmin, createQuestionGroup);
+
+/**
+ * @swagger
+ * /api/admin/question-group/{groupId}:
+ *   put:
+ *     tags: [Questions]
+ *     summary: Update a question group (admin only)
+ *     description: Update the name of a question group. Requires admin privileges.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: groupId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID of the question group to update
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 minLength: 3
+ *                 maxLength: 255
+ *                 description: New name for the question group
+ *     responses:
+ *       200:
+ *         description: Question group updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Question group updated successfully
+ *                 group:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *                     name:
+ *                       type: string
+ *                     titleId:
+ *                       type: integer
+ *                     createdAt:
+ *                       type: string
+ *                       format: date-time
+ *                     updatedAt:
+ *                       type: string
+ *                       format: date-time
+ *       400:
+ *         description: Invalid input or validation error
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Access denied. Admin privileges required.
+ *       404:
+ *         description: Question group not found
+ *       500:
+ *         description: Server error
+ */
+router.put('/admin/question-group/:groupId', verifyToken, isAdmin, updateQuestionGroup);
+
+/**
+ * @swagger
+ * /api/admin/question-group/{groupId}:
+ *   delete:
+ *     tags: [Questions]
+ *     summary: Delete a question group (admin only)
+ *     description: Delete a question group. Can only be deleted if it has no associated questions. Requires admin privileges.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: groupId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID of the question group to delete
+ *     responses:
+ *       200:
+ *         description: Question group deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Question group deleted successfully
+ *       400:
+ *         description: Cannot delete group with existing questions
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Access denied. Admin privileges required.
+ *       404:
+ *         description: Question group not found
+ *       500:
+ *         description: Server error
+ */
+router.delete('/admin/question-group/:groupId', verifyToken, isAdmin, deleteQuestionGroup);
 
 /**
  * @swagger
@@ -1286,7 +1397,7 @@ router.get('/user/answers', verifyToken, getUserAnswers);
  *       404:
  *         description: Project not found
  */
-router.get('/user/answers/project', verifyToken, getProjectAnswers);
+router.get('/user/answers/project/:projectId', verifyToken, getProjectAnswers);
 
 /**
  * @swagger

@@ -297,6 +297,24 @@ const deleteTitleSchema = Joi.object({
   id: Joi.number().integer().positive().required()
 });
 
+const updateQuestionGroupSchema = Joi.object({
+  name: Joi.string().required().trim().min(3).max(255)
+    .messages({
+      'string.empty': 'Group name is required',
+      'string.min': 'Group name must be at least 3 characters',
+      'string.max': 'Group name cannot exceed 255 characters'
+    })
+});
+
+const deleteQuestionGroupSchema = Joi.object({
+  groupId: Joi.number().integer().required().min(1)
+    .messages({
+      'number.base': 'Group ID must be a number',
+      'number.integer': 'Group ID must be an integer',
+      'number.min': 'Group ID must be at least 1'
+    })
+});
+
 module.exports = {
   createTitleSchema,
   createQuestionGroupSchema,
@@ -313,5 +331,7 @@ module.exports = {
   getQuestionGroupsSchema,
   updateQuestionSchema,
   updateTitleSchema,
+  updateQuestionGroupSchema,
+  deleteQuestionGroupSchema,
   deleteTitleSchema
 };

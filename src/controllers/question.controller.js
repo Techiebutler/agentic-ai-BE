@@ -14,7 +14,9 @@ const {
   saveLlmHistorySchema,
   getQuestionGroupsSchema,
   updateQuestionSchema,
-  updateTitleSchema
+  updateTitleSchema,
+  updateQuestionGroupSchema,
+  deleteQuestionGroupSchema
 } = require('../validations/question.validation');
 const { getPagination, getPagingData } = require('../utils/pagination');
 const { Op } = require('sequelize');
@@ -1171,6 +1173,71 @@ const getQuestionsWithTitles = async (req, res) => {
   }
 };
 
+const updateQuestionGroup = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const { error, value } = updateQuestionGroupSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({ message: error.details[0].message });
+    }
+
+    const group = await db.questionGroups.findByPk(groupId);
+    if (!group) {
+      return res.status(404).json({ message: 'Question group not found' });
+    }
+
+    await group.update({
+      name: value.name,
+      updatedBy: req.user.id
+    });
+
+    res.status(200).json({
+      message: 'Question group updated successfully',
+      group
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+const deleteQuestionGroup = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const { error } = deleteQuestionGroupSchema.validate({ groupId });
+    if (error) {
+      return res.status(400).json({ message: error.details[0].message });
+    }
+
+    const group = await db.questionGroups.findByPk(groupId, {
+      include: [{
+        model: db.questions,
+        attributes: ['id']
+      }]
+    });
+
+    if (!group) {
+      return res.status(404).json({ message: 'Question group not found' });
+    }
+
+    // Check if group has any questions
+    if (group.questions && group.questions.length > 0) {
+      return res.status(400).json({ 
+        message: 'Cannot delete question group that has questions. Please delete or move the questions first.' 
+      });
+    }
+
+    await group.destroy();
+
+    res.status(200).json({
+      message: 'Question group deleted successfully'
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
 module.exports = {
   createTitle,
   createQuestionGroup,
@@ -1185,11 +1252,13 @@ module.exports = {
   getAllTitles,
   updateAnswer,
   getProjectAnswers,
-  getLlmHistory,
   saveLlmHistory,
+  getLlmHistory,
   getAllQuestionGroups,
   updateQuestion,
   updateTitle,
   deleteTitle,
-  getQuestionsWithTitles
+  getQuestionsWithTitles,
+  updateQuestionGroup,
+  deleteQuestionGroup
 };
