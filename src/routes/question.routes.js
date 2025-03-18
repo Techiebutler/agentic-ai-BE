@@ -210,7 +210,7 @@ router.delete('/admin/title/:titleId', verifyToken, isAdmin, deleteTitle);
  *       403:
  *         description: Access denied. Admin privileges required.
  */
-router.get('/titles', verifyToken, isAdmin, getAllTitles);
+router.get('/titles', verifyToken, getAllTitles);
 
 /**
  * @swagger
