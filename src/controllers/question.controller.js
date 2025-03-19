@@ -977,7 +977,6 @@ const updateQuestion = async (req, res) => {
       return res.status(400).json({ message: error.details[0].message });
     }
 
-    // Find question with its options
     const question = await db.questions.findByPk(questionId, {
       include: [{
         model: db.options,
@@ -989,31 +988,18 @@ const updateQuestion = async (req, res) => {
       return res.status(404).json({ message: 'Question not found' });
     }
 
-    // Validate type change compatibility
-    if (value.questionType && value.questionType !== question.questionType) {
-      const hasOptions = question.options && question.options.length > 0;
-
-      // If changing from option-based type to text/llm
-      if (['text', 'llm'].includes(value.questionType) && hasOptions) {
-        return res.status(400).json({
-          message: 'Cannot change to text/llm type while options exist. Delete options first.'
-        });
-      }
-
-      // If changing between option-based types (radio/select/checkbox), it's allowed
-      const optionBasedTypes = ['radio', 'select', 'checkbox'];
-      if (!optionBasedTypes.includes(value.questionType) && hasOptions) {
-        return res.status(400).json({
-          message: 'Invalid type change. Question has options.'
-        });
-      }
-    }
-
     // Update the question
     await question.update({
       ...value,
       updatedBy: userId
     });
+
+    // If changing to text/llm type, remove any existing options
+    if (['text', 'llm'].includes(value.questionType)) {
+      await db.options.destroy({
+        where: { questionId }
+      });
+    }
 
     // Fetch updated question with options
     const updatedQuestion = await db.questions.findByPk(questionId, {
@@ -1114,6 +1100,7 @@ const getQuestionsWithTitles = async (req, res) => {
                                       'questionId', q.id,
                                       'questionText', q."questionText",
                                       'questionType', q."questionType",
+                                      'isRequired',q."isRequired",
                                       'options', (
                                           SELECT COALESCE(
                                               JSONB_AGG(
@@ -1141,6 +1128,7 @@ const getQuestionsWithTitles = async (req, res) => {
                       'questionId', uq.id,
                       'questionText', uq."questionText",
                       'questionType', uq."questionType",
+                      'isRequired',uq."isRequired",
                       'options', (
                           SELECT COALESCE(
                               JSONB_AGG(

@@ -1092,6 +1092,9 @@ router.get('/questions/:titleId', verifyToken, getQuestionsByTitle);
  *                                   questionType:
  *                                     type: string
  *                                     enum: [text, radio, select, checkbox]
+ *                                   isRequired:
+ *                                     type: boolean
+ *                                     default: false
  *                                   options:
  *                                     type: array
  *                                     items:
@@ -1113,6 +1116,9 @@ router.get('/questions/:titleId', verifyToken, getQuestionsByTitle);
  *                             questionType:
  *                               type: string
  *                               enum: [text, radio, select, checkbox]
+ *                             isRequired:
+ *                               type: boolean
+ *                               default: false
  *                             options:
  *                               type: array
  *                               items:
