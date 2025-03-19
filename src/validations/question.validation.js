@@ -28,7 +28,7 @@ const createQuestionGroupSchema = Joi.object({
 });
 
 const createQuestionSchema = Joi.object({
-  questionText: Joi.string().required().trim().min(1).max(500)
+  questionText: Joi.string().required().trim()
     .messages({
       'string.empty': 'Question text is required',
       'string.min': 'Question text must be at least 1 character',
@@ -283,7 +283,7 @@ const getQuestionGroupsSchema = Joi.object({
 });
 
 const updateQuestionSchema = Joi.object({
-  questionText: Joi.string().min(3).optional(),
+  questionText: Joi.string().trim().optional(),
   questionType: Joi.string().valid('text', 'radio', 'select', 'checkbox', 'llm').optional(),
   isRequired: Joi.boolean().optional()
 }).min(1);

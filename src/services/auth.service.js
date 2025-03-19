@@ -7,7 +7,9 @@ const generateTokens = async (user) => {
     id: user.id,
     email: user.email,
     isEmailVerified: user.isEmailVerified,
-    roleId: user.roleId
+    roleId: user.roleId,
+    firstName: user.firstName,
+    lastName: user.lastName
   };
 
   const accessToken = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '60m' });
