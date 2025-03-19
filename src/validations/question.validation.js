@@ -90,7 +90,7 @@ const updateTextSchema = Joi.object({
       'number.integer': 'ID must be an integer',
       'number.min': 'ID must be at least 1'
     }),
-  text: Joi.string().required().trim().min(1).max(500)
+  text: Joi.string().required().trim()
     .messages({
       'string.empty': 'Text is required',
       'string.min': 'Text must be at least 1 character',
@@ -130,7 +130,7 @@ const submitAnswerSchema = Joi.object({
       'number.min': 'Project ID must be at least 1',
       'any.required': 'Project ID is required'
     }),
-  answerText: Joi.string().trim().max(5000)
+  answerText: Joi.string().trim()
     .messages({
       'string.empty': 'Answer text cannot be empty',
       'string.min': 'Answer text must be at least 1 character',
@@ -164,7 +164,7 @@ const addOptionSchema = Joi.object({
       'number.integer': 'Question ID must be an integer',
       'number.min': 'Question ID must be at least 1'
     }),
-  optionText: Joi.string().required().trim().min(1).max(100)
+  optionText: Joi.string().required().trim()
     .messages({
       'string.empty': 'Option text is required',
       'string.min': 'Option text must be at least 1 character',
