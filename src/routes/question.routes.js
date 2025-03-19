@@ -424,7 +424,7 @@ router.get('/admin/question-groups/:titleId', verifyToken, isAdmin, getAllQuesti
 
 /**
  * @swagger
- * /api/admin/question/create:
+ * /api/admin/question:
  *   post:
  *     tags: [Questions]
  *     summary: Create a new question (admin only)
@@ -510,7 +510,7 @@ router.get('/admin/question-groups/:titleId', verifyToken, isAdmin, getAllQuesti
  *       500:
  *         description: Server error
  */
-router.post('/admin/question/create', verifyToken, isAdmin, createQuestion);
+router.post('/admin/question', verifyToken, isAdmin, createQuestion);
 
 /**
  * @swagger
@@ -666,7 +666,7 @@ router.put('/admin/question/:questionId', verifyToken, isAdmin, updateQuestion);
 
 /**
  * @swagger
- * /api/admin/question/update-text:
+ * /api/admin/question:
  *   put:
  *     tags: [Questions]
  *     summary: Update question text or option text (admin only)
@@ -734,7 +734,7 @@ router.put('/admin/question/:questionId', verifyToken, isAdmin, updateQuestion);
  *                   type: string
  *                   example: "Question not found"
  */
-router.put('/admin/question/update-text', verifyToken, isAdmin, updateText);
+router.put('/admin/question', verifyToken, isAdmin, updateText);
 
 /**
  * @swagger

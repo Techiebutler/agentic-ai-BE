@@ -96,7 +96,7 @@ const updateTextSchema = Joi.object({
       'string.min': 'Text must be at least 1 character',
       'string.max': 'Text cannot exceed 500 characters'
     })
-});
+})
 
 const deleteQuestionSchema = Joi.object({
   questionId: Joi.number().integer().required().min(1)
