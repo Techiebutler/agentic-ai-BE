@@ -1,13 +1,13 @@
 const Joi = require('joi');
 
 const createTitleSchema = Joi.object({
-  name: Joi.string().required().trim().min(3).max(255)
+  name: Joi.string().required().trim()
     .messages({
       'string.empty': 'Title name is required',
       'string.min': 'Title name must be at least 3 characters',
       'string.max': 'Title name cannot exceed 255 characters'
     }),
-  description: Joi.string().optional().allow('').trim().max(1000)
+  description: Joi.string().optional().allow('').trim()
     .messages({
       'string.max': 'Description cannot exceed 1000 characters'
     })
@@ -19,7 +19,7 @@ const createQuestionGroupSchema = Joi.object({
       'number.base': 'Title ID must be a number',
       'number.positive': 'Title ID must be positive'
     }),
-  name: Joi.string().required().trim().min(3).max(255)
+  name: Joi.string().required().trim()
     .messages({
       'string.empty': 'Group name is required',
       'string.min': 'Group name must be at least 3 characters',
@@ -39,13 +39,13 @@ const createQuestionSchema = Joi.object({
       'string.empty': 'Question type is required',
       'any.only': 'Question type must be one of: text, radio, select, checkbox, llm'
     }),
-  titleId: Joi.number().integer().min(1)
+  titleId: Joi.number().integer()
     .messages({
       'number.base': 'Title ID must be a number',
       'number.integer': 'Title ID must be an integer',
       'number.min': 'Title ID must be at least 1'
     }),
-  groupId: Joi.number().integer().min(1)
+  groupId: Joi.number().integer()
     .messages({
       'number.base': 'Group ID must be a number',
       'number.integer': 'Group ID must be an integer',
@@ -57,9 +57,9 @@ const createQuestionSchema = Joi.object({
     }),
   options: Joi.when('questionType', {
     is: Joi.string().valid('radio', 'select', 'checkbox'),
-    then: Joi.array().min(1).items(
+    then: Joi.array().items(
       Joi.object({
-        optionText: Joi.string().required().trim().min(1).max(255)
+        optionText: Joi.string().required().trim()
           .messages({
             'string.empty': 'Option text is required',
             'string.min': 'Option text must be at least 1 character',
@@ -99,7 +99,7 @@ const updateTextSchema = Joi.object({
 })
 
 const deleteQuestionSchema = Joi.object({
-  questionId: Joi.number().integer().required().min(1)
+  questionId: Joi.number().integer().required()
     .messages({
       'number.base': 'Question ID must be a number',
       'number.integer': 'Question ID must be an integer',
@@ -108,7 +108,7 @@ const deleteQuestionSchema = Joi.object({
 });
 
 const deleteOptionSchema = Joi.object({
-  optionId: Joi.number().integer().required().min(1)
+  optionId: Joi.number().integer().required()
     .messages({
       'number.base': 'Option ID must be a number',
       'number.integer': 'Option ID must be an integer',
@@ -117,20 +117,20 @@ const deleteOptionSchema = Joi.object({
 });
 
 const submitAnswerSchema = Joi.object({
-  questionId: Joi.number().integer().required().min(1)
+  questionId: Joi.number().integer().required()
     .messages({
       'number.base': 'Question ID must be a number',
       'number.integer': 'Question ID must be an integer',
       'number.min': 'Question ID must be at least 1'
     }),
-  projectId: Joi.number().integer().required().min(1)
+  projectId: Joi.number().integer().required()
     .messages({
       'number.base': 'Project ID must be a number',
       'number.integer': 'Project ID must be an integer',
       'number.min': 'Project ID must be at least 1',
       'any.required': 'Project ID is required'
     }),
-  answerText: Joi.string().trim().min(1).max(5000)
+  answerText: Joi.string().trim().max(5000)
     .messages({
       'string.empty': 'Answer text cannot be empty',
       'string.min': 'Answer text must be at least 1 character',
@@ -173,20 +173,20 @@ const addOptionSchema = Joi.object({
 });
 
 const updateAnswerSchema = Joi.object({
-  answerId: Joi.number().integer().required().min(1)
+  answerId: Joi.number().integer().required()
     .messages({
       'number.base': 'Answer ID must be a number',
       'number.integer': 'Answer ID must be an integer',
       'number.min': 'Answer ID must be at least 1'
     }),
-  projectId: Joi.number().integer().required().min(1)
+  projectId: Joi.number().integer().required()
     .messages({
       'number.base': 'Project ID must be a number',
       'number.integer': 'Project ID must be an integer',
       'number.min': 'Project ID must be at least 1',
       'any.required': 'Project ID is required'
     }),
-  answerText: Joi.string().trim().min(1).max(500)
+  answerText: Joi.string().trim()
     .messages({
       'string.empty': 'Answer text is required',
       'string.min': 'Answer text must be at least 1 character',
@@ -258,13 +258,13 @@ const saveLlmHistorySchema = Joi.object({
       'number.integer': 'Project ID must be an integer',
       'number.min': 'Project ID must be at least 1'
     }),
-  llmAnswer: Joi.string().required().trim().min(1).max(5000)
+  llmAnswer: Joi.string().required().trim()
     .messages({
       'string.empty': 'LLM answer is required',
       'string.min': 'LLM answer must be at least 1 character',
       'string.max': 'LLM answer cannot exceed 5000 characters'
     }),
-  rejectionReason: Joi.string().required().trim().min(1).max(500)
+  rejectionReason: Joi.string().required().trim()
     .messages({
       'string.empty': 'Rejection reason is required',
       'string.min': 'Rejection reason must be at least 1 character',
@@ -289,8 +289,8 @@ const updateQuestionSchema = Joi.object({
 }).min(1);
 
 const updateTitleSchema = Joi.object({
-  name: Joi.string().min(3).max(100).optional(),
-  description: Joi.string().min(10).max(500).optional()
+  name: Joi.string().optional(),
+  description: Joi.string().optional()
 }).min(1);
 
 const deleteTitleSchema = Joi.object({
@@ -298,7 +298,7 @@ const deleteTitleSchema = Joi.object({
 });
 
 const updateQuestionGroupSchema = Joi.object({
-  name: Joi.string().required().trim().min(3).max(255)
+  name: Joi.string().required().trim()
     .messages({
       'string.empty': 'Group name is required',
       'string.min': 'Group name must be at least 3 characters',
