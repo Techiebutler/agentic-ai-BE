@@ -987,6 +987,8 @@ router.delete('/admin/option/delete/:optionId', verifyToken, isAdmin, deleteOpti
  *                                   questionType:
  *                                     type: string
  *                                     enum: [text, radio, select, checkbox]
+ *                                   isRequired:
+ *                                     type: boolean
  *                                   options:
  *                                     type: array
  *                                     items:
@@ -1008,6 +1010,8 @@ router.delete('/admin/option/delete/:optionId', verifyToken, isAdmin, deleteOpti
  *                             questionType:
  *                               type: string
  *                               enum: [text, radio, select, checkbox]
+ *                             isRequired:
+ *                               type: boolean
  *                             options:
  *                               type: array
  *                               items:
