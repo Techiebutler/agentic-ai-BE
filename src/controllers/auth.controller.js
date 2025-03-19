@@ -92,7 +92,9 @@ const login = async (req, res) => {
 
     const { email, password } = req.body;
     const user = await User.findOne({
-      where: { email },
+      where: {
+        email: db.Sequelize.where(db.Sequelize.fn('LOWER', db.Sequelize.col('email')), db.Sequelize.fn('LOWER', email))
+      },
       include: [{
         model: Role,
         attributes: ['name']
