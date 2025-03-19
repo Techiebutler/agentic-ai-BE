@@ -557,12 +557,6 @@ const addOption = async (req, res) => {
       return res.status(404).json({ message: 'Question not found' });
     }
 
-    if (!['radio', 'select', 'checkbox'].includes(question.questionType)) {
-      return res.status(400).json({
-        message: 'Options can only be added to radio, select, or checkbox questions'
-      });
-    }
-
     // Create the option
     const option = await db.options.create({
       questionId,
