@@ -1072,9 +1072,9 @@ const deleteTitle = async (req, res) => {
     ]);
 
     if (questions || groups) {
-      return res.status(400).json({
-        message: 'Cannot delete title. Delete all associated questions and groups first.'
-      });
+      // return res.status(400).json({
+      //   message: 'Cannot delete title. Delete all associated questions and groups first.'
+      // });
     }
 
     await title.destroy();
