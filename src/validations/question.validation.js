@@ -130,7 +130,7 @@ const submitAnswerSchema = Joi.object({
       'number.min': 'Project ID must be at least 1',
       'any.required': 'Project ID is required'
     }),
-  answerText: Joi.string().trim()
+  answerText: Joi.string().trim().allow("").allow(null)
     .messages({
       'string.empty': 'Answer text cannot be empty',
       'string.min': 'Answer text must be at least 1 character',
@@ -186,7 +186,7 @@ const updateAnswerSchema = Joi.object({
       'number.min': 'Project ID must be at least 1',
       'any.required': 'Project ID is required'
     }),
-  answerText: Joi.string().trim()
+  answerText: Joi.string().trim().allow("").allow(null)
     .messages({
       'string.empty': 'Answer text is required',
       'string.min': 'Answer text must be at least 1 character',
