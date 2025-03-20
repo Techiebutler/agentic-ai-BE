@@ -161,6 +161,7 @@ const getQuestionsByTitle = async (req, res) => {
                                       'questionText', q."questionText",
                                       'questionType', q."questionType",
                                       'isRequired', q."isRequired",
+                                      'createdAt', q."createdAt",
                                       'options', (
                                           SELECT COALESCE(
                                               JSONB_AGG(
@@ -174,10 +175,12 @@ const getQuestionsByTitle = async (req, res) => {
                                           WHERE o."questionId" = q.id
                                       )
                                   )
+                                  ORDER BY q."createdAt" ASC  -- Global order applied here
                               ) FILTER (WHERE q.id IS NOT NULL), '[]'::JSONB
                           )
                           FROM questions q
                           WHERE q."groupId" = g.id
+                          ORDER BY q."createdAt" ASC  -- Global order applied here
                       )
                   )
               ) FILTER (WHERE g.id IS NOT NULL), '[]'::JSONB
@@ -188,7 +191,8 @@ const getQuestionsByTitle = async (req, res) => {
                       'questionId', uq.id,
                       'questionText', uq."questionText",
                       'questionType', uq."questionType",
-                      'isRequired', uq."isRequired",  
+                      'isRequired', uq."isRequired",
+                      'createdAt', uq."createdAt",
                       'options', (
                           SELECT COALESCE(
                               JSONB_AGG(
@@ -202,6 +206,7 @@ const getQuestionsByTitle = async (req, res) => {
                           WHERE o."questionId" = uq.id
                       )
                   )
+                  ORDER BY uq."createdAt" ASC  -- Global order applied here
               ) FILTER (WHERE uq.id IS NOT NULL), '[]'::JSONB
           ) AS ungrouped_questions
       FROM titles t
@@ -212,7 +217,8 @@ const getQuestionsByTitle = async (req, res) => {
   `, {
       replacements: { titleId },
       type: db.sequelize.QueryTypes.SELECT
-    });
+  });
+  
 
     res.json({
       result,
