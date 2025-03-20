@@ -392,40 +392,44 @@ const getUserAnswers = async (req, res) => {
                 )
             ) FILTER (WHERE g.id IS NOT NULL), '[]'::JSONB
         ) AS grouped_questions,
-        COALESCE(
-            JSONB_AGG(
-                DISTINCT CASE 
-                    WHEN q."groupId" IS NULL THEN 
-                        JSONB_BUILD_OBJECT(
-                            'questionId', q.id,
-                            'questionText', q."questionText",
-                            'questionType', q."questionType",
-                            'answerId', a.id,
-                            'answer',
-                                CASE 
-                                    WHEN q."questionType" = 'text' THEN 
-                                        TO_JSONB(a."answerText")
-                                    WHEN q."questionType" IN ('radio', 'select', 'checkbox') THEN 
-                                        TO_JSONB(COALESCE(a."selectedOptionIds", '{}'::integer[]))
-                                END,
-                            'options',
-                                CASE 
-                                    WHEN q."questionType" IN ('radio', 'select', 'checkbox') THEN
-                                        (SELECT JSONB_AGG(
-                                            JSONB_BUILD_OBJECT(
-                                                'id', o.id,
-                                                'optionText', o."optionText",
-                                                'isSelected', o.id = ANY(COALESCE(a."selectedOptionIds", '{}'::integer[]))
-                                            )
-                                        )
-                                        FROM options o
-                                        WHERE o."questionId" = q.id)
-                                    ELSE NULL
-                                END
-                        )
-                END
-            ) FILTER (WHERE q."groupId" IS NULL), '[]'::JSONB
-        ) AS ungrouped_questions
+        CASE 
+            WHEN EXISTS (SELECT 1 FROM questions WHERE "titleId" = t.id) THEN
+                COALESCE(
+                    JSONB_AGG(
+                        DISTINCT CASE 
+                            WHEN q."groupId" IS NULL THEN 
+                                JSONB_BUILD_OBJECT(
+                                    'questionId', q.id,
+                                    'questionText', q."questionText",
+                                    'questionType', q."questionType",
+                                    'answerId', a.id,
+                                    'answer',
+                                        CASE 
+                                            WHEN q."questionType" = 'text' THEN 
+                                                TO_JSONB(a."answerText")
+                                            WHEN q."questionType" IN ('radio', 'select', 'checkbox') THEN 
+                                                TO_JSONB(COALESCE(a."selectedOptionIds", '{}'::integer[]))
+                                        END,
+                                    'options',
+                                        CASE 
+                                            WHEN q."questionType" IN ('radio', 'select', 'checkbox') THEN
+                                                (SELECT JSONB_AGG(
+                                                    JSONB_BUILD_OBJECT(
+                                                        'id', o.id,
+                                                        'optionText', o."optionText",
+                                                        'isSelected', o.id = ANY(COALESCE(a."selectedOptionIds", '{}'::integer[]))
+                                                    )
+                                                )
+                                                FROM options o
+                                                WHERE o."questionId" = q.id)
+                                            ELSE NULL
+                                        END
+                                )
+                        END
+                    ) FILTER (WHERE q."groupId" IS NULL), '[]'::JSONB
+                )
+            ELSE '[]'::JSONB
+        END AS ungrouped_questions
     FROM titles t
     LEFT JOIN question_groups g ON g."titleId" = t.id
     LEFT JOIN questions q ON q."titleId" = t.id
@@ -434,6 +438,7 @@ const getUserAnswers = async (req, res) => {
     GROUP BY t.id, t.name
     LIMIT :limit OFFSET :offset;
 `;
+
 
     const result = await db.sequelize.query(rawQuery, {
       replacements: { userId, titleId: req.params.titleId, limit, offset },
