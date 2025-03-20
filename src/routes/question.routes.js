@@ -1267,7 +1267,7 @@ router.put('/user/answer/update', verifyToken, updateAnswer);
 
 /**
  * @swagger
- * /api/user/answers:
+ * /api/user/answers/{titleId}:
  *   get:
  *     summary: Get user's answers
  *     tags: [Questions]
@@ -1284,6 +1284,12 @@ router.put('/user/answer/update', verifyToken, updateAnswer);
  *         schema:
  *           type: integer
  *         description: Number of items per page
+ *       - in: path
+ *         name: titleId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID of the title to get answers for
  *     responses:
  *       200:
  *         description: Success
@@ -1345,7 +1351,7 @@ router.put('/user/answer/update', verifyToken, updateAnswer);
  *       500:
  *         description: Server error
  */
-router.get('/user/answers', verifyToken, getUserAnswers);
+router.get('/user/answers/:titleId', verifyToken, getUserAnswers);
 
 /**
  * @swagger

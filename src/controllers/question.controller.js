@@ -145,12 +145,6 @@ const getQuestionsByTitle = async (req, res) => {
     }
 
     const result = await db.sequelize.query(`
-      WITH ordered_questions AS (
-          SELECT 
-              q.* 
-          FROM questions q
-          ORDER BY q."createdAt" ASC  -- Global ordering applied here
-      )
       SELECT 
           t.id AS titleId,
           t.name AS title_name,
@@ -163,10 +157,10 @@ const getQuestionsByTitle = async (req, res) => {
                           SELECT COALESCE(
                               JSONB_AGG(
                                   JSONB_BUILD_OBJECT(
-                                      'questionId', oq.id,
-                                      'questionText', oq."questionText",
-                                      'questionType', oq."questionType",
-                                      'isRequired', oq."isRequired",
+                                      'questionId', q.id,
+                                      'questionText', q."questionText",
+                                      'questionType', q."questionType",
+                                      'isRequired', q."isRequired",
                                       'options', (
                                           SELECT COALESCE(
                                               JSONB_AGG(
@@ -177,13 +171,13 @@ const getQuestionsByTitle = async (req, res) => {
                                               ) FILTER (WHERE o.id IS NOT NULL), '[]'::JSONB
                                           )
                                           FROM options o
-                                          WHERE o."questionId" = oq.id
+                                          WHERE o."questionId" = q.id
                                       )
                                   )
-                              ) FILTER (WHERE oq.id IS NOT NULL), '[]'::JSONB
+                              ) FILTER (WHERE q.id IS NOT NULL), '[]'::JSONB
                           )
-                          FROM ordered_questions oq
-                          WHERE oq."groupId" = g.id
+                          FROM questions q
+                          WHERE q."groupId" = g.id
                       )
                   )
               ) FILTER (WHERE g.id IS NOT NULL), '[]'::JSONB
@@ -194,7 +188,7 @@ const getQuestionsByTitle = async (req, res) => {
                       'questionId', uq.id,
                       'questionText', uq."questionText",
                       'questionType', uq."questionType",
-                      'isRequired', uq."isRequired",
+                      'isRequired', uq."isRequired",  
                       'options', (
                           SELECT COALESCE(
                               JSONB_AGG(
@@ -212,15 +206,13 @@ const getQuestionsByTitle = async (req, res) => {
           ) AS ungrouped_questions
       FROM titles t
       LEFT JOIN question_groups g ON g."titleId" = t.id
-      LEFT JOIN ordered_questions uq ON uq."titleId" = t.id AND uq."groupId" IS NULL  
+      LEFT JOIN questions uq ON uq."titleId" = t.id AND uq."groupId" IS NULL  
       WHERE t.id = :titleId AND t.status = 1
       GROUP BY t.id, t.name
   `, {
       replacements: { titleId },
       type: db.sequelize.QueryTypes.SELECT
-  });
-  
-  
+    });
 
     res.json({
       result,
@@ -1072,9 +1064,9 @@ const deleteTitle = async (req, res) => {
     ]);
 
     if (questions || groups) {
-      // return res.status(400).json({
-      //   message: 'Cannot delete title. Delete all associated questions and groups first.'
-      // });
+      return res.status(400).json({
+        message: 'Cannot delete title. Delete all associated questions and groups first.'
+      });
     }
 
     await title.destroy();
