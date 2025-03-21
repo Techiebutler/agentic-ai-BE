@@ -1064,17 +1064,17 @@ const deleteTitle = async (req, res) => {
       return res.status(404).json({ message: 'Title not found' });
     }
 
-    // Check if title has any associated questions or groups
-    const [questions, groups] = await Promise.all([
-      db.questions.findOne({ where: { titleId } }),
-      db.questionGroups.findOne({ where: { titleId } })
-    ]);
+    // // Check if title has any associated questions or groups
+    // const [questions, groups] = await Promise.all([
+    //   db.questions.findOne({ where: { titleId } }),
+    //   db.questionGroups.findOne({ where: { titleId } })
+    // ]);
 
-    if (questions || groups) {
-      return res.status(400).json({
-        message: 'Cannot delete title. Delete all associated questions and groups first.'
-      });
-    }
+    // if (questions || groups) {
+    //   return res.status(400).json({
+    //     message: 'Cannot delete title. Delete all associated questions and groups first.'
+    //   });
+    // }
 
     await title.destroy();
 
@@ -1213,12 +1213,12 @@ const deleteQuestionGroup = async (req, res) => {
       return res.status(404).json({ message: 'Question group not found' });
     }
 
-    // Check if group has any questions
-    if (group.questions && group.questions.length > 0) {
-      return res.status(400).json({ 
-        message: 'Cannot delete question group that has questions. Please delete or move the questions first.' 
-      });
-    }
+    // // Check if group has any questions
+    // if (group.questions && group.questions.length > 0) {
+    //   return res.status(400).json({ 
+    //     message: 'Cannot delete question group that has questions. Please delete or move the questions first.' 
+    //   });
+    // }
 
     await group.destroy();
 
