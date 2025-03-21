@@ -361,6 +361,7 @@ const getUserAnswers = async (req, res) => {
                                 'questionId', q.id,
                                 'questionText', q."questionText",
                                 'questionType', q."questionType",
+                                'isRequired', q."isRequired",
                                 'answerId', a.id,
                                 'answer', 
                                     CASE 
@@ -402,6 +403,7 @@ const getUserAnswers = async (req, res) => {
                                     'questionId', q.id,
                                     'questionText', q."questionText",
                                     'questionType', q."questionType",
+                                    'isRequired', q."isRequired",
                                     'answerId', a.id,
                                     'answer',
                                         CASE 
