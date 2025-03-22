@@ -21,7 +21,7 @@ const {
 } = require('../validations/question.validation');
 const { getPagination, getPagingData } = require('../utils/pagination');
 const { Op } = require('sequelize');
-const { DATABASE_STATUS_TYPE } = require('../constants/database.constants');
+const { DATABASE_STATUS_TYPE, ENTITY_TYPES } = require('../constants/database.constants');
 
 // Admin Controllers
 const createTitle = async (req, res) => {
@@ -1288,6 +1288,113 @@ const getQuestionDetails = async (req, res) => {
   }
 };
 
+const regenerateAnswers = async (req, res) => {
+  const t = await db.sequelize.transaction();
+  try {
+    const { data, group_id, rejectionReason } = req.body;
+    const userId = req.user.id;
+
+    if (!Array.isArray(data) || data.length === 0) {
+      return res.status(400).json({ message: 'Invalid data format. Expected non-empty array.' });
+    }
+
+    // Validate all question IDs exist and belong to the same group if group_id is provided
+    const questionIds = data.map(item => item.id);
+    const questions = await db.questions.findAll({
+      where: {
+        id: { [Op.in]: questionIds },
+        ...(group_id && { groupId: group_id })
+      }
+    });
+
+    if (questions.length !== questionIds.length) {
+      return res.status(400).json({ message: 'One or more invalid question IDs or questions not in specified group.' });
+    }
+
+    // Get existing answers
+    const existingAnswers = await db.answers.findAll({
+      where: {
+        questionId: {
+          [Op.in]: questionIds
+        },
+        userId,
+        status: DATABASE_STATUS_TYPE.ACTIVE
+      }
+    });
+
+    if (existingAnswers.length === 0) {
+      return res.status(400).json({ message: 'No existing answers found to regenerate.' });
+    }
+
+    // Get latest versions for each answer
+    const latestVersions = await Promise.all(existingAnswers.map(async (answer) => {
+      const latestHistory = await db.answerHistories.findOne({
+        where: { answerId: answer.id },
+        order: [['version', 'DESC']],
+        attributes: ['version']
+      });
+      return {
+        answerId: answer.id,
+        version: latestHistory ? latestHistory.version + 1 : 1
+      };
+    }));
+
+    // Create version lookup map
+    const versionMap = latestVersions.reduce((map, item) => {
+      map[item.answerId] = item.version;
+      return map;
+    }, {});
+
+    // Store existing answers in history
+    await Promise.all([
+      // Store answer details in history
+      ...existingAnswers.map(answer => db.answerHistories.create({
+        answerId: answer.id,
+        userId,
+        entityType: ENTITY_TYPES.QUESTION,
+        answerText: answer.answerText,
+        selectedOptionIds: answer.selectedOptionIds,
+        systemPrompt: answer.systemPrompt,
+        rejectionReason,
+        version: versionMap[answer.id],
+        status: DATABASE_STATUS_TYPE.ACTIVE,
+        createdBy: userId
+      }, { transaction: t }))
+    ]);
+
+    // Update existing answers with new data
+    await Promise.all(data.map(async (item) => {
+      const answer = existingAnswers.find(a => a.questionId === item.id);
+      if (answer) {
+        await answer.update({
+          answerText: item.answerText,
+          selectedOptionIds: item.selectedOptionIds,
+        }, { transaction: t });
+      }
+    }));
+
+    // TODO: Call external service to get new systemPrompt
+    // const systemPrompt = await externalService.getSystemPrompt(existingAnswers);
+    const systemPrompt = "Placeholder for external service response"; // Remove this line when implementing external service
+
+    // Update all answers with the new systemPrompt
+    await Promise.all(existingAnswers.map(answer =>
+      answer.update({ systemPrompt }, { transaction: t })
+    ));
+
+    await t.commit();
+    res.status(200).json({ 
+      message: 'Answers regenerated successfully', 
+      answers: existingAnswers,
+      versions: versionMap
+    });
+  } catch (error) {
+    await t.rollback();
+    console.error('Error in regenerateAnswers:', error);
+    res.status(500).json({ message: 'Error regenerating answers', error: error.message });
+  }
+};
+
 const submitBulkAnswers = async (req, res) => {
   try {
     const { data, group_id, projectId } = req.body;
@@ -1369,89 +1476,6 @@ const submitBulkAnswers = async (req, res) => {
   } catch (error) {
     console.error('Error in submitBulkAnswers:', error);
     res.status(500).json({ message: 'Error submitting answers', error: error.message });
-  }
-};
-
-const regenerateAnswers = async (req, res) => {
-  const t = await db.sequelize.transaction();
-  try {
-    const { data, group_id, rejectionReason } = req.body;
-    const userId = req.user.id;
-
-    if (!Array.isArray(data) || data.length === 0) {
-      return res.status(400).json({ message: 'Invalid data format. Expected non-empty array.' });
-    }
-
-    // Validate all question IDs exist and belong to the same group if group_id is provided
-    const questionIds = data.map(item => item.id);
-    const questions = await db.questions.findAll({
-      where: {
-        id: { [Op.in]: questionIds },
-        ...(group_id && { groupId: group_id })
-      }
-    });
-
-    if (questions.length !== questionIds.length) {
-      return res.status(400).json({ message: 'One or more invalid question IDs or questions not in specified group.' });
-    }
-
-    // Get existing answers
-    const existingAnswers = await db.answers.findAll({
-      where: {
-        questionId: {
-          [Op.in]: questionIds
-        },
-        userId,
-        status: DATABASE_STATUS_TYPE.ACTIVE
-      }
-    });
-
-    if (existingAnswers.length === 0) {
-      return res.status(400).json({ message: 'No existing answers found to regenerate.' });
-    }
-
-    // Store existing answers in history
-    await Promise.all([
-      // Store answer details in history
-      ...existingAnswers.map(answer => db.answerHistories.create({
-        answerId: answer.id,
-        userId,
-        entityType: ENTITY_TYPES.QUESTION,
-        answerText: answer.answerText,
-        selectedOptionIds: answer.selectedOptionIds,
-        systemPrompt: answer.systemPrompt,
-        rejectionReason,
-        status: DATABASE_STATUS_TYPE.ACTIVE,
-        createdBy: userId
-      }, { transaction: t }))
-    ]);
-
-    // Update existing answers with new data
-    await Promise.all(data.map(async (item) => {
-      const answer = existingAnswers.find(a => a.questionId === item.id);
-      if (answer) {
-        await answer.update({
-          answerText: item.answerText,
-          selectedOptionIds: item.selectedOptionIds,
-        }, { transaction: t });
-      }
-    }));
-
-    // TODO: Call external service to get new systemPrompt
-    // const systemPrompt = await externalService.getSystemPrompt(existingAnswers);
-    const systemPrompt = "Placeholder for external service response"; // Remove this line when implementing external service
-
-    // Update all answers with the new systemPrompt
-    await Promise.all(existingAnswers.map(answer =>
-      answer.update({ systemPrompt }, { transaction: t })
-    ));
-
-    await t.commit();
-    res.status(200).json({ message: 'Answers regenerated successfully', answers: existingAnswers });
-  } catch (error) {
-    await t.rollback();
-    console.error('Error in regenerateAnswers:', error);
-    res.status(500).json({ message: 'Error regenerating answers', error: error.message });
   }
 };
 

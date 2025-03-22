@@ -66,15 +66,5 @@ module.exports = (sequelize, Sequelize) => {
     }
   );
 
-  // ✅ Automatically set the correct version before inserting a new record
-  LlmHistory.beforeCreate(async (history) => {
-    const latestHistory = await LlmHistory.findOne({
-      where: { answerId: history.answerId, entityType: history.entityType },
-      order: [['version', 'DESC']],
-    });
-
-    history.version = latestHistory ? latestHistory.version + 1 : 1;
-  });
-
   return LlmHistory;
 };
