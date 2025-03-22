@@ -37,6 +37,10 @@ module.exports = (sequelize, Sequelize) => {
       type: Sequelize.ARRAY(Sequelize.INTEGER),
       allowNull: true
     },
+    systemPrompt: {
+      type: Sequelize.TEXT,
+      allowNull: true
+    },
     status: {
       type: Sequelize.INTEGER,
       defaultValue: 1,

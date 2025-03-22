@@ -34,7 +34,7 @@ db.questionGroups = require('./question-group.model')(sequelize, Sequelize);
 db.questions = require('./question.model')(sequelize, Sequelize);
 db.options = require('./option.model')(sequelize, Sequelize);
 db.answers = require('./answer.model')(sequelize, Sequelize);
-db.llmHistories = require('./llmHistory.model')(sequelize, Sequelize);
+db.answerHistories = require('./answerHistory.model')(sequelize, Sequelize);
 
 // Define relationships
 // User-Role relationship
@@ -118,25 +118,18 @@ db.answers.belongsTo(db.users, {
 });
 
 // LLM History relationships
-db.users.hasMany(db.llmHistories, {
+db.users.hasMany(db.answerHistories, {
   foreignKey: 'userId'
 });
-db.llmHistories.belongsTo(db.users, {
+db.answerHistories.belongsTo(db.users, {
   foreignKey: 'userId'
 });
 
-db.questions.hasMany(db.llmHistories, {
-  foreignKey: 'questionId'
+db.answers.hasMany(db.answerHistories, {
+  foreignKey: 'answerId'
 });
-db.llmHistories.belongsTo(db.questions, {
-  foreignKey: 'questionId'
-});
-
-db.projects.hasMany(db.llmHistories, {
-  foreignKey: 'projectId'
-});
-db.llmHistories.belongsTo(db.projects, {
-  foreignKey: 'projectId'
+db.answerHistories.belongsTo(db.answers, {
+  foreignKey: 'answerId'
 });
 
 module.exports = db;

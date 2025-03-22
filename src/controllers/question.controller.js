@@ -850,7 +850,7 @@ const getLlmHistory = async (req, res) => {
     }
 
     // Get LLM history with pagination
-    const history = await db.llmHistories.findAndCountAll({
+    const history = await db.answerHistories.findAndCountAll({
       where: {
         userId,
         projectId,
@@ -915,7 +915,7 @@ const saveLlmHistory = async (req, res) => {
     }
 
     // Save to LLM history
-    const history = await db.llmHistories.create({
+    const history = await db.answerHistories.create({
       userId,
       projectId,
       questionId,
@@ -1240,9 +1240,9 @@ const getQuestionDetails = async (req, res) => {
     }
 
     const question = await db.questions.findOne({
-      where: { 
+      where: {
         id: questionId,
-        status: DATABASE_STATUS_TYPE.ACTIVE 
+        status: DATABASE_STATUS_TYPE.ACTIVE
       },
       include: [
         {
@@ -1288,6 +1288,154 @@ const getQuestionDetails = async (req, res) => {
   }
 };
 
+const submitBulkAnswers = async (req, res) => {
+  const t = await db.sequelize.transaction();
+  try {
+    const { data, group_id } = req.body;
+    const userId = req.user.id;
+
+    if (!Array.isArray(data) || data.length === 0) {
+      return res.status(400).json({ message: 'Invalid data format. Expected non-empty array.' });
+    }
+
+    // Validate all question IDs exist and belong to the same group if group_id is provided
+    const questionIds = data.map(item => item.id);
+    const questions = await db.questions.findAll({
+      where: {
+        id: { [Op.in]: questionIds },
+        ...(group_id && { groupId: group_id })
+      }
+    });
+
+    if (questions.length !== questionIds.length) {
+      return res.status(400).json({ message: 'One or more invalid question IDs or questions not in specified group.' });
+    }
+
+    // Create answers
+    const answers = await Promise.all(data.map(async (item) => {
+      return db.answers.create({
+        questionId: item.id,
+        userId,
+        projectId: questions[0].projectId, // All questions in a group belong to same project
+        answerText: item.answerText,
+        selectedOptionIds: item.selectedOptionIds,
+        status: DATABASE_STATUS_TYPE.ACTIVE,
+        createdBy: userId
+      }, { transaction: t });
+    }));
+
+    // TODO: Call external service to get systemPrompt
+    // const systemPrompt = await externalService.getSystemPrompt(answers);
+    const systemPrompt = "Placeholder for external service response"; // Remove this line when implementing external service
+
+    // Update all answers with the systemPrompt
+    await Promise.all(answers.map(answer =>
+      answer.update({ systemPrompt }, { transaction: t })
+    ));
+    
+    await t.commit();
+    res.status(200).json({ message: 'Answers submitted successfully', answers });
+  } catch (error) {
+    await t.rollback();
+    console.error('Error in submitBulkAnswers:', error);
+    res.status(500).json({ message: 'Error submitting answers', error: error.message });
+  }
+};
+
+const regenerateAnswers = async (req, res) => {
+  const t = await db.sequelize.transaction();
+  try {
+    const { data, group_id,rejectionReason } = req.body;
+    const userId = req.user.id;
+
+    if (!Array.isArray(data) || data.length === 0) {
+      return res.status(400).json({ message: 'Invalid data format. Expected non-empty array.' });
+    }
+
+    // Validate all question IDs exist and belong to the same group if group_id is provided
+    const questionIds = data.map(item => item.id);
+    const questions = await db.questions.findAll({
+      where: {
+        id: { [Op.in]: questionIds },
+        ...(group_id && { groupId: group_id })
+      }
+    });
+
+    if (questions.length !== questionIds.length) {
+      return res.status(400).json({ message: 'One or more invalid question IDs or questions not in specified group.' });
+    }
+
+    // Get existing answers
+    const existingAnswers = await db.answers.findAll({
+      where: {
+        questionId: {
+          [Op.in]: questionIds
+        },
+        userId,
+        status: DATABASE_STATUS_TYPE.ACTIVE
+      }
+    });
+
+    if (existingAnswers.length === 0) {
+      return res.status(400).json({ message: 'No existing answers found to regenerate.' });
+    }
+
+    // Store existing answers in history
+    await Promise.all([
+      // Store answer details in history
+      ...existingAnswers.map(answer => db.answerHistories.create({
+        answerId: answer.id,
+        userId,
+        entityType: ENTITY_TYPES.QUESTION,
+        answerText: answer.answerText,
+        selectedOptionIds: answer.selectedOptionIds,
+        rejectionReason,
+        status: DATABASE_STATUS_TYPE.ACTIVE,
+        createdBy: userId
+      }, { transaction: t })),
+
+      // Store systemPrompt in history
+      ...existingAnswers.map(answer => db.answerHistories.create({
+        answerId: answer.id,
+        userId,
+        entityType: ENTITY_TYPES.SYSTEMPROMPT,
+        answerText: answer.systemPrompt,
+        selectedOptionIds: null,
+        rejectionReason,
+        status: DATABASE_STATUS_TYPE.ACTIVE,
+        createdBy: userId
+      }, { transaction: t }))
+    ]);
+
+    // Update existing answers with new data
+    await Promise.all(data.map(async (item) => {
+      const answer = existingAnswers.find(a => a.questionId === item.id);
+      if (answer) {
+        await answer.update({
+          answerText: item.answerText,
+          selectedOptionIds: item.selectedOptionIds,
+        }, { transaction: t });
+      }
+    }));
+
+    // TODO: Call external service to get new systemPrompt
+    // const systemPrompt = await externalService.getSystemPrompt(existingAnswers);
+    const systemPrompt = "Placeholder for external service response"; // Remove this line when implementing external service
+
+    // Update all answers with the new systemPrompt
+    await Promise.all(existingAnswers.map(answer =>
+      answer.update({ systemPrompt }, { transaction: t })
+    ));
+
+    await t.commit();
+    res.status(200).json({ message: 'Answers regenerated successfully', answers: existingAnswers });
+  } catch (error) {
+    await t.rollback();
+    console.error('Error in regenerateAnswers:', error);
+    res.status(500).json({ message: 'Error regenerating answers', error: error.message });
+  }
+};
+
 module.exports = {
   createTitle,
   createQuestionGroup,
@@ -1311,5 +1459,7 @@ module.exports = {
   getQuestionsWithTitles,
   updateQuestionGroup,
   deleteQuestionGroup,
-  getQuestionDetails
+  getQuestionDetails,
+  submitBulkAnswers,
+  regenerateAnswers
 };
