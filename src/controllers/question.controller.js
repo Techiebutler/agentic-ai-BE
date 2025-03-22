@@ -1289,9 +1289,8 @@ const getQuestionDetails = async (req, res) => {
 };
 
 const submitBulkAnswers = async (req, res) => {
-  const t = await db.sequelize.transaction();
   try {
-    const { data, group_id } = req.body;
+    const { data, group_id, projectId } = req.body;
     const userId = req.user.id;
 
     if (!Array.isArray(data) || data.length === 0) {
@@ -1311,17 +1310,45 @@ const submitBulkAnswers = async (req, res) => {
       return res.status(400).json({ message: 'One or more invalid question IDs or questions not in specified group.' });
     }
 
-    // Create answers
-    const answers = await Promise.all(data.map(async (item) => {
-      return db.answers.create({
-        questionId: item.id,
+    // Find existing answers for these questions
+    const existingAnswers = await db.answers.findAll({
+      where: {
+        questionId: { [Op.in]: questionIds },
         userId,
-        projectId: questions[0].projectId, // All questions in a group belong to same project
-        answerText: item.answerText,
-        selectedOptionIds: item.selectedOptionIds,
-        status: DATABASE_STATUS_TYPE.ACTIVE,
-        createdBy: userId
-      }, { transaction: t });
+        projectId,
+        status: DATABASE_STATUS_TYPE.ACTIVE
+      }
+    });
+
+    // Create a map of existing answers for quick lookup
+    const existingAnswersMap = existingAnswers.reduce((map, answer) => {
+      map[answer.questionId] = answer;
+      return map;
+    }, {});
+
+    // Update or create answers
+    const answers = await Promise.all(data.map(async (item) => {
+      const existingAnswer = existingAnswersMap[item.id];
+      
+      if (existingAnswer) {
+        // Update existing answer
+        await existingAnswer.update({
+          answerText: item.answerText,
+          selectedOptionIds: item.selectedOptionIds
+        });
+        return existingAnswer;
+      } else {
+        // Create new answer
+        return db.answers.create({
+          questionId: item.id,
+          userId,
+          projectId,
+          answerText: item.answerText,
+          selectedOptionIds: item.selectedOptionIds,
+          status: DATABASE_STATUS_TYPE.ACTIVE,
+          createdBy: userId
+        });
+      }
     }));
 
     // TODO: Call external service to get systemPrompt
@@ -1330,13 +1357,16 @@ const submitBulkAnswers = async (req, res) => {
 
     // Update all answers with the systemPrompt
     await Promise.all(answers.map(answer =>
-      answer.update({ systemPrompt }, { transaction: t })
+      answer.update({ systemPrompt })
     ));
-    
-    await t.commit();
-    res.status(200).json({ message: 'Answers submitted successfully', answers });
+
+    res.status(200).json({ 
+      message: 'Answers submitted successfully', 
+      answers,
+      updated: Object.keys(existingAnswersMap).length,
+      created: answers.length - Object.keys(existingAnswersMap).length
+    });
   } catch (error) {
-    await t.rollback();
     console.error('Error in submitBulkAnswers:', error);
     res.status(500).json({ message: 'Error submitting answers', error: error.message });
   }
@@ -1345,7 +1375,7 @@ const submitBulkAnswers = async (req, res) => {
 const regenerateAnswers = async (req, res) => {
   const t = await db.sequelize.transaction();
   try {
-    const { data, group_id,rejectionReason } = req.body;
+    const { data, group_id, rejectionReason } = req.body;
     const userId = req.user.id;
 
     if (!Array.isArray(data) || data.length === 0) {

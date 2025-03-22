@@ -7,6 +7,7 @@ const authRoutes = require('./routes/auth.routes');
 const projectRoutes = require('./routes/project.routes');
 const adminRoutes = require('./routes/admin.routes');
 const questionRoutes = require('./routes/question.routes');
+const answerRoutes = require('./routes/answer.routes');
 
 require('dotenv').config();
 
@@ -55,6 +56,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/project', projectRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api', questionRoutes);
+app.use('/api/answers', answerRoutes);
+
 
 // Simple route for testing
 app.get('/', (req, res) => {
