@@ -1389,18 +1389,7 @@ const regenerateAnswers = async (req, res) => {
         entityType: ENTITY_TYPES.QUESTION,
         answerText: answer.answerText,
         selectedOptionIds: answer.selectedOptionIds,
-        rejectionReason,
-        status: DATABASE_STATUS_TYPE.ACTIVE,
-        createdBy: userId
-      }, { transaction: t })),
-
-      // Store systemPrompt in history
-      ...existingAnswers.map(answer => db.answerHistories.create({
-        answerId: answer.id,
-        userId,
-        entityType: ENTITY_TYPES.SYSTEMPROMPT,
-        answerText: answer.systemPrompt,
-        selectedOptionIds: null,
+        systemPrompt: answer.systemPrompt,
         rejectionReason,
         status: DATABASE_STATUS_TYPE.ACTIVE,
         createdBy: userId
