@@ -224,7 +224,12 @@ const refreshToken = async (req, res) => {
     }
 
     const accessToken = authService.generateAccessToken(user);
-    res.json({ accessToken });
+    res.json({
+      message: 'Access token refreshed successfully',
+      data: {
+        accessToken: accessToken
+      }
+    });
   } catch (error) {
     res.status(400).json({ message: error.message });
   }
