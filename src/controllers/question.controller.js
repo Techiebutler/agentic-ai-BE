@@ -139,7 +139,12 @@ const getQuestionsByTitle = async (req, res) => {
   try {
     const titleId = req.params.titleId;
  
-    const title = await db.titles.findByPk(titleId);
+    const title = await db.titles.findOne({
+      where: {
+        id: titleId,
+        status: DATABASE_STATUS_TYPE.ACTIVE
+      }
+    });
     if (!title) {
       return res.status(404).json({ message: 'Title not found' });
     }
@@ -172,14 +177,14 @@ const getQuestionsByTitle = async (req, res) => {
                                               ) FILTER (WHERE o.id IS NOT NULL), '[]'::JSONB
                                           )
                                           FROM options o
-                                          WHERE o."questionId" = q.id
+                                          WHERE o."questionId" = q.id AND o.status = ${DATABASE_STATUS_TYPE.ACTIVE}
                                       )
                                   )
                                   ORDER BY q.id
                               ) FILTER (WHERE q.id IS NOT NULL), '[]'::JSONB
                           )
                           FROM questions q
-                          WHERE q."groupId" = g.id
+                          WHERE q."groupId" = g.id AND q.status = ${DATABASE_STATUS_TYPE.ACTIVE}
                       )
                   )
               ) FILTER (WHERE g.id IS NOT NULL), '[]'::JSONB
@@ -202,7 +207,7 @@ const getQuestionsByTitle = async (req, res) => {
                               ) FILTER (WHERE o.id IS NOT NULL), '[]'::JSONB
                           )
                           FROM options o
-                          WHERE o."questionId" = uq.id
+                          WHERE o."questionId" = uq.id AND o.status = ${DATABASE_STATUS_TYPE.ACTIVE}
                       )
                   )
               ) FILTER (WHERE uq.id IS NOT NULL), '[]'::JSONB
@@ -210,7 +215,7 @@ const getQuestionsByTitle = async (req, res) => {
       FROM titles t
       LEFT JOIN question_groups g ON g."titleId" = t.id
       LEFT JOIN questions uq ON uq."titleId" = t.id AND uq."groupId" IS NULL  
-      WHERE t.id = :titleId AND t.status = 1
+      WHERE t.id = :titleId AND t.status = ${DATABASE_STATUS_TYPE.ACTIVE}
       GROUP BY t.id, t.name
   `, {
       replacements: { titleId },
@@ -349,6 +354,18 @@ const getUserAnswers = async (req, res) => {
     var { page, limit } = req.query;
     var { limit, offset } = getPagination(page, limit);
     const userId = req.user.id;
+
+    const titleId = req.params.titleId;
+ 
+    const title = await db.titles.findOne({
+      where: {
+        id: titleId,
+        status: DATABASE_STATUS_TYPE.ACTIVE
+      }
+    });
+    if (!title) {
+      return res.status(404).json({ message: 'Title not found' });
+    }
  
     const rawQuery = `
     SELECT
@@ -380,10 +397,10 @@ const getUserAnswers = async (req, res) => {
                                             'optionText', o."optionText",
                                             'isSelected', o.id = ANY(COALESCE(a."selectedOptionIds", '{}'::integer[]))
                                         ) ORDER BY o.id
-                                    ) FROM options o WHERE o."questionId" = q.id) AS "options"
+                                    ) FROM options o WHERE o."questionId" = q.id AND o."status"=${DATABASE_STATUS_TYPE.ACTIVE}) AS "options"
                                 FROM questions q
                                 LEFT JOIN answers a ON a."questionId" = q.id AND a."userId" = :userId
-                                WHERE q."titleId" = :titleId
+                                WHERE q."titleId" = :titleId AND q."status"=${DATABASE_STATUS_TYPE.ACTIVE}
                                 ORDER BY q.id
                             ) AS uq
                             WHERE uq."groupId" = g.id
@@ -423,13 +440,13 @@ const getUserAnswers = async (req, res) => {
                     'optionText', o."optionText",
                     'isSelected', o.id = ANY(COALESCE(a."selectedOptionIds", '{}'::integer[]))
                 ) ORDER BY o.id
-            ) FROM options o WHERE o."questionId" = q.id) AS "options"
+            ) FROM options o WHERE o."questionId" = q.id AND o."status"=${DATABASE_STATUS_TYPE.ACTIVE}) AS "options"
         FROM questions q
         LEFT JOIN answers a ON a."questionId" = q.id AND a."userId" = :userId
-        WHERE q."titleId" = :titleId
+        WHERE q."titleId" = :titleId AND q."status"=${DATABASE_STATUS_TYPE.ACTIVE}
         ORDER BY q.id
     ) AS uq ON uq."titleId" = t.id
-    WHERE t.id = :titleId AND t.status = 1
+    WHERE t.id = :titleId AND t.status = ${DATABASE_STATUS_TYPE.ACTIVE}
     GROUP BY t.id, t.name
     ORDER BY t.id
     LIMIT :limit OFFSET :offset;
@@ -495,15 +512,17 @@ const deleteQuestion = async (req, res) => {
       return res.status(404).json({ message: 'Question not found' });
     }
 
-    // Delete associated options first (will be handled by cascade delete)
-    await db.options.destroy({
-      where: { questionId }
-    });
+    // Update status to IN_ACTIVE instead of deleting
+    await db.questions.update(
+      { status: DATABASE_STATUS_TYPE.IN_ACTIVE },
+      { where: { id: questionId } }
+    );
 
-    // Delete the question
-    await db.questions.destroy({
-      where: { id: questionId }
-    });
+    // Update associated options status to IN_ACTIVE
+    await db.options.update(
+      { status: DATABASE_STATUS_TYPE.IN_ACTIVE },
+      { where: { questionId } }
+    );
 
     return res.status(200).json({ message: 'Question and its options deleted successfully' });
   } catch (error) {
@@ -538,7 +557,10 @@ const deleteOption = async (req, res) => {
       }
     }
 
-    await option.destroy();
+    await db.options.update(
+      { status: DATABASE_STATUS_TYPE.IN_ACTIVE },
+      { where: { id: optionId } }
+    );
     return res.status(200).json({ message: 'Option deleted successfully' });
   } catch (error) {
     return res.status(500).json({ message: error.message });
@@ -578,6 +600,7 @@ const addOption = async (req, res) => {
 const getAllTitles = async (req, res) => {
   try {
     const titles = await db.titles.findAll({
+      where: { status: DATABASE_STATUS_TYPE.ACTIVE },
       attributes: ['id', 'name', 'description', 'createdAt'],
       order: [['createdAt', 'ASC']]
     });
@@ -945,13 +968,13 @@ const getAllQuestionGroups = async (req, res) => {
     }
 
     const groups = await db.questionGroups.findAll({
-      where: { titleId, status: 1 },  // Only get active groups
+      where: { titleId, status: DATABASE_STATUS_TYPE.ACTIVE },  // Only get active groups
       attributes: ['id', 'name', 'titleId', 'createdAt'],
       include: [{
         model: db.titles,
         attributes: ['name'],
         as: 'title',
-        where: { status: 1 }  // Only include active titles
+        where: { status: DATABASE_STATUS_TYPE.ACTIVE }  // Only include active titles
       }],
       order: [['createdAt', 'ASC']]
     });
@@ -1059,19 +1082,11 @@ const deleteTitle = async (req, res) => {
       return res.status(404).json({ message: 'Title not found' });
     }
 
-    // // Check if title has any associated questions or groups
-    // const [questions, groups] = await Promise.all([
-    //   db.questions.findOne({ where: { titleId } }),
-    //   db.questionGroups.findOne({ where: { titleId } })
-    // ]);
-
-    // if (questions || groups) {
-    //   return res.status(400).json({
-    //     message: 'Cannot delete title. Delete all associated questions and groups first.'
-    //   });
-    // }
-
-    await title.destroy();
+    // Update status to IN_ACTIVE instead of deleting
+    await db.titles.update(
+      { status: DATABASE_STATUS_TYPE.IN_ACTIVE },
+      { where: { id: titleId } }
+    );
 
     res.json({
       message: 'Title deleted successfully'
@@ -1208,14 +1223,11 @@ const deleteQuestionGroup = async (req, res) => {
       return res.status(404).json({ message: 'Question group not found' });
     }
 
-    // // Check if group has any questions
-    // if (group.questions && group.questions.length > 0) {
-    //   return res.status(400).json({ 
-    //     message: 'Cannot delete question group that has questions. Please delete or move the questions first.' 
-    //   });
-    // }
-
-    await group.destroy();
+    // Update status to IN_ACTIVE instead of deleting
+    await db.questionGroups.update(
+      { status: DATABASE_STATUS_TYPE.IN_ACTIVE },
+      { where: { id: groupId } }
+    );
 
     res.status(200).json({
       message: 'Question group deleted successfully'
