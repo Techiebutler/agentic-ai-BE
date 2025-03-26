@@ -54,8 +54,13 @@ const createQuestionGroup = async (req, res) => {
       return res.status(400).json({ message: error.details[0].message });
     }
 
-    const title = await db.titles.findByPk(value.titleId);
-    if (!title) {
+    const findTitle = await db.titles.findOne({
+      where: {
+        id: value.titleId,
+        status: DATABASE_STATUS_TYPE.ACTIVE
+      }
+    });
+    if (!findTitle) {
       return res.status(404).json({ message: 'Title not found' });
     }
 
@@ -83,13 +88,23 @@ const createQuestion = async (req, res) => {
 
     // Validate title or group exists
     if (value.titleId) {
-      const title = await db.titles.findByPk(value.titleId);
-      if (!title) {
+      const findTitle = await db.titles.findOne({
+        where: {
+          id: value.titleId,
+          status: DATABASE_STATUS_TYPE.ACTIVE
+        }
+      });
+      if (!findTitle) {
         return res.status(404).json({ message: 'Title not found' });
       }
     } else {
-      const group = await db.questionGroups.findByPk(value.groupId);
-      if (!group) {
+      const findGroup = await db.questionGroups.findOne({
+        where: {
+          id: value.groupId,
+          status: DATABASE_STATUS_TYPE.ACTIVE
+        }
+      });
+      if (!findGroup) {
         return res.status(404).json({ message: 'Question group not found' });
       }
     }
@@ -138,7 +153,7 @@ const createQuestion = async (req, res) => {
 const getQuestionsByTitle = async (req, res) => {
   try {
     const titleId = req.params.titleId;
- 
+
     const title = await db.titles.findOne({
       where: {
         id: titleId,
@@ -148,7 +163,7 @@ const getQuestionsByTitle = async (req, res) => {
     if (!title) {
       return res.status(404).json({ message: 'Title not found' });
     }
- 
+
     const result = await db.sequelize.query(`
       SELECT
           t.id AS titleId,
@@ -221,8 +236,8 @@ const getQuestionsByTitle = async (req, res) => {
       replacements: { titleId },
       type: db.sequelize.QueryTypes.SELECT
     });
- 
- 
+
+
     res.json({
       result,
       title: {
@@ -250,7 +265,7 @@ const submitAnswer = async (req, res) => {
 
     // Validate project exists and user has access
     const project = await db.projects.findOne({
-      where: { id: projectId, status: 1 }
+      where: { id: projectId, status: DATABASE_STATUS_TYPE.ACTIVE }
     });
     if (!project) {
       return res.status(404).json({ message: 'Project not found' });
@@ -258,14 +273,19 @@ const submitAnswer = async (req, res) => {
 
     // Check if user has access to this project
     const userProject = await db.projects.findOne({
-      where: { userId, id: projectId }
+      where: { userId, id: projectId, status: DATABASE_STATUS_TYPE.ACTIVE }
     });
     if (!userProject) {
       return res.status(403).json({ message: 'Access denied to this project' });
     }
 
     // Find the question
-    const question = await db.questions.findByPk(questionId);
+    const question = await db.questions.findOne({
+      where: {
+        id: questionId,
+        status: DATABASE_STATUS_TYPE.ACTIVE
+      }
+    })
     if (!question) {
       return res.status(404).json({ message: 'Question not found' });
     }
@@ -356,7 +376,7 @@ const getUserAnswers = async (req, res) => {
     const userId = req.user.id;
 
     const titleId = req.params.titleId;
- 
+
     const title = await db.titles.findOne({
       where: {
         id: titleId,
@@ -366,7 +386,7 @@ const getUserAnswers = async (req, res) => {
     if (!title) {
       return res.status(404).json({ message: 'Title not found' });
     }
- 
+
     const rawQuery = `
     SELECT
         t.id AS "titleId",
@@ -451,23 +471,23 @@ const getUserAnswers = async (req, res) => {
     ORDER BY t.id
     LIMIT :limit OFFSET :offset;
 `;
- 
- 
+
+
     const result = await db.sequelize.query(rawQuery, {
       replacements: { userId, titleId: req.params.titleId, limit, offset },
       type: db.sequelize.QueryTypes.SELECT
     });
- 
+
     return res.json({
       message: 'User answers retrieved successfully',
       data: result
     });
- 
+
   } catch (error) {
     return res.status(500).json({ message: error.message });
   }
 };
- 
+
 
 const updateText = async (req, res) => {
   try {
@@ -479,7 +499,7 @@ const updateText = async (req, res) => {
     const { type, id, text } = req.body;
 
     if (type === 'question') {
-      const question = await db.questions.findByPk(id);
+      const question = await db.questions.findOne({ where: { id, status: DATABASE_STATUS_TYPE.ACTIVE } });
       if (!question) {
         return res.status(404).json({ message: 'Question not found' });
       }
@@ -488,7 +508,7 @@ const updateText = async (req, res) => {
     }
 
     if (type === 'option') {
-      const option = await db.options.findByPk(id);
+      const option = await db.options.findOne({ where: { id, status: DATABASE_STATUS_TYPE.ACTIVE } });
       if (!option) {
         return res.status(404).json({ message: 'Option not found' });
       }
@@ -506,7 +526,7 @@ const deleteQuestion = async (req, res) => {
     if (!questionId) {
       return res.status(400).json({ message: 'Question ID is required' });
     }
-    const question = await db.questions.findByPk(questionId);
+    const question = await db.questions.findOne({ where: { id: questionId, status: DATABASE_STATUS_TYPE.ACTIVE } });
 
     if (!question) {
       return res.status(404).json({ message: 'Question not found' });
@@ -537,14 +557,14 @@ const deleteOption = async (req, res) => {
       return res.status(400).json({ message: 'Option ID is required' });
     }
 
-    const option = await db.options.findByPk(optionId);
+    const option = await db.options.findOne({ where: { id: optionId, status: DATABASE_STATUS_TYPE.ACTIVE } });
 
     if (!option) {
       return res.status(404).json({ message: 'Option not found' });
     }
 
     // Check if this is the last option for a radio/select/checkbox question
-    const question = await db.questions.findByPk(option.questionId);
+    const question = await db.questions.findOne({ where: { id: option.questionId, status: DATABASE_STATUS_TYPE.ACTIVE } });
     if (question && ['radio', 'select', 'checkbox'].includes(question.questionType)) {
       const optionCount = await db.options.count({
         where: { questionId: option.questionId }
@@ -577,7 +597,7 @@ const addOption = async (req, res) => {
     const { questionId, optionText } = value;
 
     // Check if question exists and is of correct type
-    const question = await db.questions.findByPk(questionId);
+    const question = await db.questions.findOne({ where: { id: questionId, status: DATABASE_STATUS_TYPE.ACTIVE } });
     if (!question) {
       return res.status(404).json({ message: 'Question not found' });
     }
@@ -626,7 +646,7 @@ const updateAnswer = async (req, res) => {
 
     // Validate project exists and user has access
     const project = await db.projects.findOne({
-      where: { id: projectId, status: 1 }
+      where: { id: projectId, status: DATABASE_STATUS_TYPE.ACTIVE }
     });
     if (!project) {
       return res.status(404).json({ message: 'Project not found' });
@@ -634,7 +654,7 @@ const updateAnswer = async (req, res) => {
 
     // Check if user has access to this project
     const userProject = await db.projects.findOne({
-      where: { userId, id: projectId }
+      where: { userId, id: projectId, status: DATABASE_STATUS_TYPE.ACTIVE }
     });
     if (!userProject) {
       return res.status(403).json({ message: 'Access denied to this project' });
@@ -642,7 +662,7 @@ const updateAnswer = async (req, res) => {
 
     // Find the answer and check ownership
     const answer = await db.answers.findOne({
-      where: { id: answerId, projectId },
+      where: { id: answerId, projectId, status: DATABASE_STATUS_TYPE.ACTIVE },
       include: [{
         model: db.questions,
         attributes: ['id', 'questionType']
@@ -675,7 +695,8 @@ const updateAnswer = async (req, res) => {
       const validOptions = await db.options.count({
         where: {
           id: selectedOptionIds,
-          questionId: answer.questionId
+          questionId: answer.questionId,
+          status: DATABASE_STATUS_TYPE.ACTIVE
         }
       });
 
@@ -721,7 +742,7 @@ const getProjectAnswers = async (req, res) => {
 
     // Validate project exists and user has access
     const project = await db.projects.findOne({
-      where: { id: projectId, status: 1 }
+      where: { id: projectId, status: DATABASE_STATUS_TYPE.ACTIVE }
     });
     if (!project) {
       return res.status(404).json({ message: 'Project not found' });
@@ -729,7 +750,7 @@ const getProjectAnswers = async (req, res) => {
 
     // Check if user has access to this project
     const userProject = await db.projects.findOne({
-      where: { userId, id: projectId }
+      where: { userId, id: projectId, status: DATABASE_STATUS_TYPE.ACTIVE }
     });
     if (!userProject) {
       return res.status(403).json({ message: 'Access denied to this project' });
@@ -769,14 +790,14 @@ const getProjectAnswers = async (req, res) => {
                                                 )
                                             )
                                             FROM options o
-                                            WHERE o."questionId" = q.id)
+                                            WHERE o."questionId" = q.id AND o."status"=${DATABASE_STATUS_TYPE.ACTIVE})
                                         ELSE NULL
                                     END
                             )
                         )
                         FROM questions q
                         LEFT JOIN answers a ON a."questionId" = q.id AND a."userId" = :userId AND a."projectId" = :projectId
-                        WHERE q."groupId" = g.id
+                        WHERE q."groupId" = g.id AND q."status"=${DATABASE_STATUS_TYPE.ACTIVE}
                     )
                 )
             ) FILTER (WHERE g.id IS NOT NULL), '[]'::JSONB
@@ -808,7 +829,7 @@ const getProjectAnswers = async (req, res) => {
                                             )
                                         )
                                         FROM options o
-                                        WHERE o."questionId" = q.id)
+                                        WHERE o."questionId" = q.id AND o."status"=${DATABASE_STATUS_TYPE.ACTIVE})
                                     ELSE NULL
                                 END
                         )
@@ -819,7 +840,7 @@ const getProjectAnswers = async (req, res) => {
     LEFT JOIN question_groups g ON g."titleId" = t.id
     LEFT JOIN questions q ON q."titleId" = t.id
     LEFT JOIN answers a ON a."questionId" = q.id AND a."userId" = :userId AND a."projectId" = :projectId
-    WHERE t.id = :titleId AND t.status = 1
+    WHERE t.id = :titleId AND t.status = ${DATABASE_STATUS_TYPE.ACTIVE}
     GROUP BY t.id, t.name
     `;
 
@@ -853,7 +874,7 @@ const getLlmHistory = async (req, res) => {
 
     // Validate project exists and user has access
     const project = await db.projects.findOne({
-      where: { id: projectId, status: 1 }
+      where: { id: projectId, status: DATABASE_STATUS_TYPE.ACTIVE }
     });
     if (!project) {
       return res.status(404).json({ message: 'Project not found' });
@@ -861,7 +882,7 @@ const getLlmHistory = async (req, res) => {
 
     // Check if user has access to this project
     const userProject = await db.projects.findOne({
-      where: { userId, id: projectId }
+      where: { userId, id: projectId, status: DATABASE_STATUS_TYPE.ACTIVE }
     });
     if (!userProject) {
       return res.status(403).json({ message: 'Access denied to this project' });
@@ -872,7 +893,8 @@ const getLlmHistory = async (req, res) => {
       where: {
         userId,
         projectId,
-        questionId
+        questionId,
+        status: DATABASE_STATUS_TYPE.ACTIVE
       },
       order: [['createdAt', 'DESC']],
       limit,
@@ -907,7 +929,7 @@ const saveLlmHistory = async (req, res) => {
 
     // Validate project exists and user has access
     const project = await db.projects.findOne({
-      where: { id: projectId, status: 1 }
+      where: { id: projectId, status: DATABASE_STATUS_TYPE.ACTIVE }
     });
     if (!project) {
       return res.status(404).json({ message: 'Project not found' });
@@ -915,7 +937,7 @@ const saveLlmHistory = async (req, res) => {
 
     // Check if user has access to this project
     const userProject = await db.projects.findOne({
-      where: { userId, id: projectId }
+      where: { userId, id: projectId, status: DATABASE_STATUS_TYPE.ACTIVE }
     });
     if (!userProject) {
       return res.status(403).json({ message: 'Access denied to this project' });
@@ -923,7 +945,7 @@ const saveLlmHistory = async (req, res) => {
 
     // Validate question exists and is LLM type
     const question = await db.questions.findOne({
-      where: { id: questionId }
+      where: { id: questionId,status:DATABASE_STATUS_TYPE.ACTIVE }
     });
     if (!question) {
       return res.status(404).json({ message: 'Question not found' });
@@ -962,7 +984,9 @@ const getAllQuestionGroups = async (req, res) => {
     const { titleId } = value;
 
     // Validate title exists
-    const title = await db.titles.findByPk(titleId);
+    const title = await db.titles.findOne({
+      where: { id: titleId, status: DATABASE_STATUS_TYPE.ACTIVE }
+    });
     if (!title) {
       return res.status(404).json({ message: 'Title not found' });
     }
@@ -1003,7 +1027,8 @@ const updateQuestion = async (req, res) => {
       include: [{
         model: db.options,
         attributes: ['id', 'optionText']
-      }]
+      }],
+      where: { status: DATABASE_STATUS_TYPE.ACTIVE }
     });
 
     if (!question) {
@@ -1028,7 +1053,8 @@ const updateQuestion = async (req, res) => {
       include: [{
         model: db.options,
         attributes: ['id', 'optionText']
-      }]
+      }],
+      where: { status: DATABASE_STATUS_TYPE.ACTIVE }
     });
 
     res.json({
@@ -1050,7 +1076,10 @@ const updateTitle = async (req, res) => {
       return res.status(400).json({ message: error.details[0].message });
     }
 
-    const title = await db.titles.findByPk(titleId);
+    const title = await db.titles.findByPk(titleId, {
+      where: { status: DATABASE_STATUS_TYPE.ACTIVE }
+    });
+
     if (!title) {
       return res.status(404).json({ message: 'Title not found' });
     }
@@ -1077,7 +1106,9 @@ const deleteTitle = async (req, res) => {
       return res.status(400).json({ message: 'Title ID is required!' })
     }
 
-    const title = await db.titles.findByPk(titleId);
+    const title = await db.titles.findByPk(titleId, {
+      where: { status: DATABASE_STATUS_TYPE.ACTIVE }
+    });
     if (!title) {
       return res.status(404).json({ message: 'Title not found' });
     }
@@ -1184,7 +1215,9 @@ const updateQuestionGroup = async (req, res) => {
       return res.status(400).json({ message: error.details[0].message });
     }
 
-    const group = await db.questionGroups.findByPk(groupId);
+    const group = await db.questionGroups.findByPk(groupId,{
+      where: { status: DATABASE_STATUS_TYPE.ACTIVE }
+    });
     if (!group) {
       return res.status(404).json({ message: 'Question group not found' });
     }
@@ -1216,7 +1249,8 @@ const deleteQuestionGroup = async (req, res) => {
       include: [{
         model: db.questions,
         attributes: ['id']
-      }]
+      }],
+      where: { status: DATABASE_STATUS_TYPE.ACTIVE }
     });
 
     if (!group) {
@@ -1310,7 +1344,8 @@ const regenerateAnswers = async (req, res) => {
     const questions = await db.questions.findAll({
       where: {
         id: { [Op.in]: questionIds },
-        ...(group_id && { groupId: group_id })
+        ...(group_id && { groupId: group_id }),
+        status: DATABASE_STATUS_TYPE.ACTIVE
       }
     });
 
@@ -1336,7 +1371,7 @@ const regenerateAnswers = async (req, res) => {
     // Get latest versions for each answer
     const latestVersions = await Promise.all(existingAnswers.map(async (answer) => {
       const latestHistory = await db.answerHistories.findOne({
-        where: { answerId: answer.id },
+        where: { answerId: answer.id,status:DATABASE_STATUS_TYPE.ACTIVE },
         order: [['version', 'DESC']],
         attributes: ['version']
       });
@@ -1390,8 +1425,8 @@ const regenerateAnswers = async (req, res) => {
     ));
 
     await t.commit();
-    res.status(200).json({ 
-      message: 'Answers regenerated successfully', 
+    res.status(200).json({
+      message: 'Answers regenerated successfully',
       answers: existingAnswers,
       versions: versionMap
     });
@@ -1416,7 +1451,8 @@ const submitBulkAnswers = async (req, res) => {
     const questions = await db.questions.findAll({
       where: {
         id: { [Op.in]: questionIds },
-        ...(group_id && { groupId: group_id })
+        ...(group_id && { groupId: group_id }),
+        status:DATABASE_STATUS_TYPE.ACTIVE
       }
     });
 
@@ -1443,7 +1479,7 @@ const submitBulkAnswers = async (req, res) => {
     // Update or create answers
     const answers = await Promise.all(data.map(async (item) => {
       const existingAnswer = existingAnswersMap[item.id];
-      
+
       if (existingAnswer) {
         // Update existing answer
         await existingAnswer.update({
@@ -1474,8 +1510,8 @@ const submitBulkAnswers = async (req, res) => {
       answer.update({ systemPrompt })
     ));
 
-    res.status(200).json({ 
-      message: 'Answers submitted successfully', 
+    res.status(200).json({
+      message: 'Answers submitted successfully',
       answers,
       updated: Object.keys(existingAnswersMap).length,
       created: answers.length - Object.keys(existingAnswersMap).length
