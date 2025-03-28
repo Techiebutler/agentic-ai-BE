@@ -23,10 +23,9 @@ const createProjectSchema = Joi.object({
     name: Joi.string().optional().trim(),
     address: Joi.string().optional().trim(),
     contact: Joi.string().optional().trim()
-  }).required()
+  }).optional()
     .messages({
-      'object.base': 'Company info must be an object',
-      'object.empty': 'Company info is required'
+      'object.base': 'Company info must be an object'
     })
 });
 
