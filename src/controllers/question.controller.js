@@ -431,7 +431,7 @@ const getUserAnswers = async (req, res) => {
                             FROM (
                                 SELECT uq."questionId",
                                     uq."questionText", uq."questionType", uq."isRequired",
-                                    uq."answerId", uq."answer", uq."options", uq."sequenceNo"
+                                    uq."answerId", uq."answer", uq."options", uq."sequenceNo", uq."version"
                                 FROM (
                                     SELECT DISTINCT ON (q.id, q."questionText", q."questionType", q."isRequired", a.id, a."answerText", a."selectedOptionIds")
                                         q.id AS "questionId", q."groupId", q."titleId",
@@ -450,7 +450,8 @@ const getUserAnswers = async (req, res) => {
                                                 ) ORDER BY o.id
                                             ) FROM options o WHERE o."questionId" = q.id AND o."status"=${DATABASE_STATUS_TYPE.ACTIVE}),
                                             '[]'::jsonb
-                                        ) AS "options"
+                                        ) AS "options",
+                                        COALESCE((SELECT MAX(ah."version") FROM "answerHistory" ah WHERE ah."answerId" = a.id), 0) AS "version"
                                     FROM questions q
                                     LEFT JOIN answers a ON a."questionId" = q.id AND a."userId" = :userId
                                     WHERE q."titleId" = :titleId AND q."status"=${DATABASE_STATUS_TYPE.ACTIVE}
@@ -476,6 +477,7 @@ const getUserAnswers = async (req, res) => {
                     'sequenceNo', uq."sequenceNo",
                     'answerId', uq."answerId",
                     'answer', uq."answer",
+                    'version', uq."version",
                     'options', (
                         SELECT COALESCE(
                             JSONB_AGG(
@@ -509,7 +511,8 @@ const getUserAnswers = async (req, res) => {
                     'optionText', o."optionText",
                     'isSelected', o.id = ANY(COALESCE(a."selectedOptionIds", '{}'::integer[]))
                 ) ORDER BY o.id
-            ) FROM options o WHERE o."questionId" = q.id AND o."status"=${DATABASE_STATUS_TYPE.ACTIVE}) AS "options"
+            ) FROM options o WHERE o."questionId" = q.id AND o."status"=${DATABASE_STATUS_TYPE.ACTIVE}) AS "options",
+            COALESCE((SELECT MAX(ah."version") FROM "answerHistory" ah WHERE ah."answerId" = a.id), 0) AS "version"
         FROM questions q
         LEFT JOIN answers a ON a."questionId" = q.id AND a."userId" = :userId
         WHERE q."titleId" = :titleId AND q."status"=${DATABASE_STATUS_TYPE.ACTIVE}
