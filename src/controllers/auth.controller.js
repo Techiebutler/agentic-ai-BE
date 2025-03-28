@@ -238,7 +238,11 @@ const refreshToken = async (req, res) => {
 const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
-    const user = await User.findOne({ where: { email } });
+    const user = await User.findOne({
+      where: {
+        email: db.Sequelize.where(db.Sequelize.fn('LOWER', db.Sequelize.col('email')), db.Sequelize.fn('LOWER', email))
+      },
+    });
 
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
