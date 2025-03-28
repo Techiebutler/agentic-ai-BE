@@ -27,7 +27,8 @@ const {
   getQuestionDetails,
   submitBulkAnswers,
   regenerateAnswers,
-  updateQuestionSequence
+  updateQuestionSequence,
+  getAnswerHistory
 } = require('../controllers/question.controller');
 
 const router = express.Router();
@@ -1698,5 +1699,76 @@ router.post('/user/answer/llm-history', verifyToken, saveLlmHistory);
  *         description: Server error
  */
 router.get('/user/answer/llm-history', verifyToken, getLlmHistory);
+
+/**
+ * @swagger
+ * /api/user/answers/history:
+ *   post:
+ *     summary: Get version-wise answer history for multiple questions
+ *     tags: [Questions]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - questionIds
+ *             properties:
+ *               questionIds:
+ *                 type: array
+ *                 items:
+ *                   type: integer
+ *                 description: Array of question IDs to get history for
+ *     responses:
+ *       200:
+ *         description: Answer history retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Answer history retrieved successfully
+ *                 data:
+ *                   type: object
+ *                   additionalProperties:
+ *                     type: array
+ *                     items:
+ *                       type: object
+ *                       properties:
+ *                         questionId:
+ *                           type: integer
+ *                         questionText:
+ *                           type: string
+ *                         questionType:
+ *                           type: string
+ *                         answerId:
+ *                           type: integer
+ *                         answer:
+ *                           oneOf:
+ *                             - type: string
+ *                             - type: array
+ *                               items:
+ *                                 type: object
+ *                                 properties:
+ *                                   option_id:
+ *                                     type: integer
+ *                                   optionText:
+ *                                     type: string
+ *                                   isSelected:
+ *                                     type: boolean
+ *                         createdAt:
+ *                           type: string
+ *                           format: date-time
+ *       400:
+ *         description: Invalid input
+ *       500:
+ *         description: Server error
+ */
+router.post('/user/answers/history', verifyToken, getAnswerHistory);
 
 module.exports = router;

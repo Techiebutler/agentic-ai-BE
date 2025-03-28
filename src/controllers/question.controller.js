@@ -18,7 +18,8 @@ const {
   updateQuestionGroupSchema,
   deleteQuestionGroupSchema,
   getQuestionDetailsSchema,
-  updateQuestionSequenceSchema
+  updateQuestionSequenceSchema,
+  getAnswerHistorySchema
 } = require('../validations/question.validation');
 const { getPagination, getPagingData } = require('../utils/pagination');
 const { Op } = require('sequelize');
@@ -466,7 +467,6 @@ const getUserAnswers = async (req, res) => {
                 )
             ) FILTER (WHERE g.id IS NOT NULL AND g.status=${DATABASE_STATUS_TYPE.ACTIVE}), '[]'::JSONB
         ) AS grouped_questions,
-      
         COALESCE(
             JSONB_AGG(
                 DISTINCT JSONB_BUILD_OBJECT(
@@ -1654,6 +1654,104 @@ const updateQuestionSequence = async (req, res) => {
   }
 };
 
+const getAnswerHistory = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { error, value } = getAnswerHistorySchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({ message: error.details[0].message });
+    }
+
+    // Get max version for these questions
+    const maxVersionQuery = `
+      SELECT MAX(ah."version") as max_version
+      FROM "answerHistory" ah
+      JOIN answers a ON ah."answerId" = a.id
+      WHERE a."questionId" IN (:questionIds) AND a."userId" = :userId
+    `;
+    
+    const maxVersionResult = await db.sequelize.query(maxVersionQuery, {
+      replacements: { questionIds: value.questionIds, userId },
+      type: db.sequelize.QueryTypes.SELECT
+    });
+
+    const maxVersion = maxVersionResult[0]?.max_version || 0;
+    
+    // Get version-wise history
+    const historyQuery = `
+      WITH version_data AS (
+        SELECT 
+          q.id as "questionId",
+          q."questionText",
+          q."questionType",
+          a.id as "answerId",
+          ah."version",
+       CASE
+      WHEN q."questionType" = 'text' THEN TO_JSONB(ah."answerText")  -- Convert text answer to JSONB
+      WHEN q."questionType" IN ('radio', 'select', 'checkbox') THEN 
+        (
+          SELECT JSONB_AGG(
+            JSONB_BUILD_OBJECT(
+              'option_id', o.id,
+              'optionText', o."optionText",
+              'isSelected', 
+                CASE 
+                  WHEN ah."selectedOptionIds" IS NULL THEN false 
+                  ELSE o.id = ANY(ah."selectedOptionIds") 
+                END  -- Properly checks multiple selected options
+            ) ORDER BY o.id
+          )
+          FROM options o 
+          WHERE o."questionId" = q.id 
+          AND o.status = ${DATABASE_STATUS_TYPE.ACTIVE} AND q.status = ${DATABASE_STATUS_TYPE.ACTIVE}
+        )
+    END AS "answer",
+          ah."createdAt"
+        FROM questions q
+        JOIN answers a ON a."questionId" = q.id AND a."userId" = :userId
+        JOIN "answerHistory" ah ON ah."answerId" = a.id
+        WHERE q.id IN (:questionIds)
+        AND q.status = ${DATABASE_STATUS_TYPE.ACTIVE}
+      )
+      SELECT 
+        "version",
+        JSONB_AGG(
+          JSONB_BUILD_OBJECT(
+            'questionId', "questionId",
+            'questionText', "questionText",
+            'questionType', "questionType",
+            'answerId', "answerId",
+            'answer', "answer",
+            'createdAt', "createdAt"
+          ) ORDER BY "questionId"
+        ) as "answers"
+      FROM version_data
+      GROUP BY "version"
+      ORDER BY "version";
+    `;
+
+    const history = await db.sequelize.query(historyQuery, {
+      replacements: { questionIds: value.questionIds, userId },
+      type: db.sequelize.QueryTypes.SELECT
+    });
+
+    // Format the response
+    const versionWiseHistory = {};
+    for (let version = 1; version <= maxVersion; version++) {
+      const versionData = history.find(h => h.version === version);
+      versionWiseHistory[version] = versionData ? versionData.answers : [];
+    }
+
+    res.json({
+      message: 'Answer history retrieved successfully',
+      data: versionWiseHistory
+    });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   createTitle,
   createQuestionGroup,
@@ -1680,5 +1778,6 @@ module.exports = {
   getQuestionDetails,
   regenerateAnswers,
   submitBulkAnswers,
-  updateQuestionSequence
+  updateQuestionSequence,
+  getAnswerHistory
 };
