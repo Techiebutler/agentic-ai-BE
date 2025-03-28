@@ -607,6 +607,42 @@ router.get('/admin/question/:questionId', verifyToken, isAdmin, getQuestionDetai
 
 /**
  * @swagger
+ * /api/admin/question/sequence:
+ *   put:
+ *     tags: [Questions]
+ *     summary: Update question sequence (admin only)
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - questionId
+ *               - newSequence
+ *             properties:
+ *               questionId:
+ *                 type: integer
+ *                 description: ID of the question to reorder
+ *               newSequence:
+ *                 type: integer
+ *                 description: New sequence number for the question
+ *     responses:
+ *       200:
+ *         description: Question sequence updated successfully
+ *       400:
+ *         description: Invalid sequence number
+ *       404:
+ *         description: Question not found
+ *       500:
+ *         description: Server error
+ */
+router.put('/admin/question/sequence', verifyToken, isAdmin, updateQuestionSequence);
+
+/**
+ * @swagger
  * /api/admin/question/{questionId}:
  *   put:
  *     tags: [Questions]
@@ -1662,41 +1698,5 @@ router.post('/user/answer/llm-history', verifyToken, saveLlmHistory);
  *         description: Server error
  */
 router.get('/user/answer/llm-history', verifyToken, getLlmHistory);
-
-/**
- * @swagger
- * /api/admin/question/sequence:
- *   put:
- *     tags: [Questions]
- *     summary: Update question sequence (admin only)
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - questionId
- *               - newSequence
- *             properties:
- *               questionId:
- *                 type: integer
- *                 description: ID of the question to reorder
- *               newSequence:
- *                 type: integer
- *                 description: New sequence number for the question
- *     responses:
- *       200:
- *         description: Question sequence updated successfully
- *       400:
- *         description: Invalid sequence number
- *       404:
- *         description: Question not found
- *       500:
- *         description: Server error
- */
-router.put('/admin/question/sequence', verifyToken, isAdmin, updateQuestionSequence);
 
 module.exports = router;
