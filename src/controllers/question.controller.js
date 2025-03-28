@@ -418,110 +418,108 @@ const getUserAnswers = async (req, res) => {
     }
 
     const rawQuery = `
-    SELECT
-        t.id AS "titleId",
-        t.name AS "titleName",
-        COALESCE(
-            JSONB_AGG(
-                DISTINCT JSONB_BUILD_OBJECT(
-                    'id', g.id,
-                    'name', g.name,
-                    'questions', COALESCE(
-                        (
-                            SELECT JSONB_AGG(q_obj ORDER BY q_obj."questionId")
+   SELECT
+    t.id AS "titleId",
+    t.name AS "titleName",
+    COALESCE(
+        JSONB_AGG(
+            DISTINCT JSONB_BUILD_OBJECT(
+                'id', g.id,
+                'name', g.name,
+                'questions', COALESCE(
+                    (
+                        SELECT JSONB_AGG(q_obj ORDER BY q_obj."questionId")
+                        FROM (
+                            SELECT DISTINCT ON (uq."questionId")
+                                uq."questionId",
+                                uq."questionText", uq."questionType", uq."isRequired",
+                                uq."answerId", uq."answer", uq."options", uq."sequenceNo", uq."version"
                             FROM (
-                                SELECT uq."questionId",
-                                    uq."questionText", uq."questionType", uq."isRequired",
-                                    uq."answerId", uq."answer", uq."options", uq."sequenceNo", uq."version"
-                                FROM (
-                                    SELECT DISTINCT ON (q.id, q."questionText", q."questionType", q."isRequired", a.id, a."answerText", a."selectedOptionIds")
-                                        q.id AS "questionId", q."groupId", q."titleId",
-                                        q."questionText", q."questionType", q."isRequired", q."sequenceNo",
-                                        a.id AS "answerId",
-                                        CASE
-                                            WHEN q."questionType" = 'text' THEN TO_JSONB(COALESCE(NULLIF(a."answerText", ''), NULL))
-                                            WHEN q."questionType" IN ('radio', 'select', 'checkbox') THEN TO_JSONB(COALESCE(a."selectedOptionIds", '{}'::integer[]))
-                                        END AS "answer",
-                                        COALESCE(
-                                            (SELECT JSONB_AGG(
-                                                JSONB_BUILD_OBJECT(
-                                                    'id', o.id,
-                                                    'optionText', o."optionText",
-                                                    'isSelected', o.id = ANY(COALESCE(a."selectedOptionIds", '{}'::integer[]))
-                                                ) ORDER BY o.id
-                                            ) FROM options o WHERE o."questionId" = q.id AND o."status"=${DATABASE_STATUS_TYPE.ACTIVE}),
-                                            '[]'::jsonb
-                                        ) AS "options",
-                                        COALESCE((SELECT MAX(ah."version") FROM "answerHistory" ah WHERE ah."answerId" = a.id), 0) AS "version"
-                                    FROM questions q
-                                    LEFT JOIN answers a ON a."questionId" = q.id AND a."userId" = :userId
-                                    WHERE q."titleId" = :titleId AND q."status"=${DATABASE_STATUS_TYPE.ACTIVE}
-                                    ORDER BY q.id
-                                ) AS uq
-                                WHERE uq."groupId" = g.id AND g."status"=${DATABASE_STATUS_TYPE.ACTIVE}
-                                ORDER BY uq."questionId"
-                            ) AS q_obj
-                        ),
-                        '[]'::jsonb
-                    )
+                                SELECT DISTINCT ON (q.id)
+                                    q.id AS "questionId", q."groupId", q."titleId",
+                                    q."questionText", q."questionType", q."isRequired", q."sequenceNo",
+                                    a.id AS "answerId",
+                                    CASE
+                                        WHEN q."questionType" = 'text' THEN TO_JSONB(COALESCE(NULLIF(a."answerText", ''), NULL))
+                                        WHEN q."questionType" IN ('radio', 'select', 'checkbox') THEN TO_JSONB(COALESCE(a."selectedOptionIds", '{}'::integer[]))
+                                    END AS "answer",
+                                    COALESCE(
+                                        (SELECT JSONB_AGG(
+                                            JSONB_BUILD_OBJECT(
+                                                'id', o.id,
+                                                'optionText', o."optionText",
+                                                'isSelected', o.id = ANY(COALESCE(a."selectedOptionIds", '{}'::integer[]))
+                                            ) ORDER BY o.id
+                                        ) FROM options o WHERE o."questionId" = q.id AND o."status"=${DATABASE_STATUS_TYPE.ACTIVE}),
+                                        '[]'::jsonb
+                                    ) AS "options",
+                                    COALESCE((SELECT MAX(ah."version") FROM "answerHistory" ah WHERE ah."answerId" = a.id), 0) AS "version"
+                                FROM questions q
+                                LEFT JOIN answers a ON a."questionId" = q.id AND a."userId" = :userId
+                                WHERE q."titleId" = :titleId AND q."status"=${DATABASE_STATUS_TYPE.ACTIVE}
+                            ) AS uq
+                            WHERE uq."groupId" = g.id
+                        ) AS q_obj
+                    ),
+                    '[]'::jsonb
                 )
-            ) FILTER (WHERE g.id IS NOT NULL AND g.status=${DATABASE_STATUS_TYPE.ACTIVE}), '[]'::JSONB
-        ) AS grouped_questions,
-        COALESCE(
-            JSONB_AGG(
-                DISTINCT JSONB_BUILD_OBJECT(
-                    'questionId', uq."questionId",
-                    'questionText', uq."questionText",
-                    'questionType', uq."questionType",
-                    'isRequired', uq."isRequired",
-                    'sequenceNo', uq."sequenceNo",
-                    'answerId', uq."answerId",
-                    'answer', uq."answer",
-                    'version', uq."version",
-                    'options', (
-                        SELECT COALESCE(
-                            JSONB_AGG(
-                                JSONB_BUILD_OBJECT(
-                                    'option_id', o.id,
-                                    'optionText', o."optionText"
-                                ) ORDER BY o.id
-                            ) FILTER (WHERE o.id IS NOT NULL), '[]'::JSONB
-                        )
-                        FROM options o
-                        WHERE o."questionId" = uq."questionId" 
-                        AND o.status = ${DATABASE_STATUS_TYPE.ACTIVE}
+            )
+        ) FILTER (WHERE g.id IS NOT NULL AND g.status=${DATABASE_STATUS_TYPE.ACTIVE}), '[]'::JSONB
+    ) AS grouped_questions,
+    COALESCE(
+        JSONB_AGG(
+            DISTINCT JSONB_BUILD_OBJECT(
+                'questionId', uq."questionId",
+                'questionText', uq."questionText",
+                'questionType', uq."questionType",
+                'isRequired', uq."isRequired",
+                'sequenceNo', uq."sequenceNo",
+                'answerId', uq."answerId",
+                'answer', uq."answer",
+                'version', uq."version",
+                'options', (
+                    SELECT COALESCE(
+                        JSONB_AGG(
+                            JSONB_BUILD_OBJECT(
+                                'option_id', o.id,
+                                'optionText', o."optionText"
+                            ) ORDER BY o.id
+                        ) FILTER (WHERE o.id IS NOT NULL), '[]'::JSONB
                     )
-                ) 
-            ) FILTER (WHERE uq."questionId" IS NOT NULL AND uq."groupId" IS NULL), '[]'::JSONB
-        ) AS ungrouped_questions
-    FROM titles t
-    LEFT JOIN question_groups g ON g."titleId" = t.id
-    LEFT JOIN (
-        SELECT DISTINCT ON (q.id, q."questionText", q."questionType", q."isRequired", a.id, a."answerText", a."selectedOptionIds")
-            q.id AS "questionId", q."groupId", q."titleId",
-            q."questionText", q."questionType", q."isRequired", q."sequenceNo",
-            a.id AS "answerId",
-            CASE
-                WHEN q."questionType" = 'text' THEN TO_JSONB(COALESCE(NULLIF(a."answerText", ''), NULL))
-                WHEN q."questionType" IN ('radio', 'select', 'checkbox') THEN TO_JSONB(COALESCE(a."selectedOptionIds", '{}'::integer[]))
-            END AS "answer",
-            (SELECT JSONB_AGG(
-                JSONB_BUILD_OBJECT(
-                    'id', o.id,
-                    'optionText', o."optionText",
-                    'isSelected', o.id = ANY(COALESCE(a."selectedOptionIds", '{}'::integer[]))
-                ) ORDER BY o.id
-            ) FROM options o WHERE o."questionId" = q.id AND o."status"=${DATABASE_STATUS_TYPE.ACTIVE}) AS "options",
-            COALESCE((SELECT MAX(ah."version") FROM "answerHistory" ah WHERE ah."answerId" = a.id), 0) AS "version"
-        FROM questions q
-        LEFT JOIN answers a ON a."questionId" = q.id AND a."userId" = :userId
-        WHERE q."titleId" = :titleId AND q."status"=${DATABASE_STATUS_TYPE.ACTIVE}
-        ORDER BY q.id
-    ) AS uq ON uq."titleId" = t.id
-    WHERE t.id = :titleId AND t.status = ${DATABASE_STATUS_TYPE.ACTIVE}
-    GROUP BY t.id, t.name
-    ORDER BY t.id
-    LIMIT :limit OFFSET :offset;
+                    FROM options o
+                    WHERE o."questionId" = uq."questionId" 
+                    AND o.status = ${DATABASE_STATUS_TYPE.ACTIVE}
+                )
+            ) 
+        ) FILTER (WHERE uq."questionId" IS NOT NULL AND uq."groupId" IS NULL), '[]'::JSONB
+    ) AS ungrouped_questions
+FROM titles t
+LEFT JOIN question_groups g ON g."titleId" = t.id
+LEFT JOIN (
+    SELECT DISTINCT ON (q.id)
+        q.id AS "questionId", q."groupId", q."titleId",
+        q."questionText", q."questionType", q."isRequired", q."sequenceNo",
+        a.id AS "answerId",
+        CASE
+            WHEN q."questionType" = 'text' THEN TO_JSONB(COALESCE(NULLIF(a."answerText", ''), NULL))
+            WHEN q."questionType" IN ('radio', 'select', 'checkbox') THEN TO_JSONB(COALESCE(a."selectedOptionIds", '{}'::integer[]))
+        END AS "answer",
+        (SELECT JSONB_AGG(
+            JSONB_BUILD_OBJECT(
+                'id', o.id,
+                'optionText', o."optionText",
+                'isSelected', o.id = ANY(COALESCE(a."selectedOptionIds", '{}'::integer[]))
+            ) ORDER BY o.id
+        ) FROM options o WHERE o."questionId" = q.id AND o."status"=${DATABASE_STATUS_TYPE.ACTIVE}) AS "options",
+        COALESCE((SELECT MAX(ah."version") FROM "answerHistory" ah WHERE ah."answerId" = a.id), 0) AS "version"
+    FROM questions q
+    LEFT JOIN answers a ON a."questionId" = q.id AND a."userId" = :userId
+    WHERE q."titleId" = :titleId AND q."status"=${DATABASE_STATUS_TYPE.ACTIVE}
+) AS uq ON uq."titleId" = t.id
+WHERE t.id = :titleId AND t.status = ${DATABASE_STATUS_TYPE.ACTIVE}
+GROUP BY t.id, t.name
+ORDER BY t.id
+LIMIT :limit OFFSET :offset;
 `;
 
     const result = await db.sequelize.query(rawQuery, {
