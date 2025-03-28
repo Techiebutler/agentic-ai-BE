@@ -13,16 +13,16 @@ const createProjectSchema = Joi.object({
       'number.empty': 'Type is required',
       'number.min': 'Type must be greater than 0'
     }),
-  description: Joi.string().required().trim()
+  description: Joi.string().optional().trim()
     .messages({
       'string.empty': 'Description is required',
       'string.min': 'Description must be at least 10 characters',
       'string.max': 'Description cannot exceed 1000 characters'
     }),
   companyInfo: Joi.object({
-    name: Joi.string().required().trim(),
-    address: Joi.string().required().trim(),
-    contact: Joi.string().required().trim()
+    name: Joi.string().optional().trim(),
+    address: Joi.string().optional().trim(),
+    contact: Joi.string().optional().trim()
   }).required()
     .messages({
       'object.base': 'Company info must be an object',
