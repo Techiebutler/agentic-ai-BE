@@ -1582,40 +1582,66 @@ const submitBulkAnswers = async (req, res) => {
 const updateQuestionSequence = async (req, res) => {
   try {
     const userId = req.user.id;
+    const questionId = parseInt(req.params.questionId);
     const { error, value } = updateQuestionSequenceSchema.validate(req.body);
     if (error) {
       return res.status(400).json({ message: error.details[0].message });
     }
 
-    // Find the question to be moved
-    const question = await db.questions.findOne({
-      where: {
-        id: value.questionId,
-        status: DATABASE_STATUS_TYPE.ACTIVE
-      }
+    const question = await db.questions.findByPk(questionId, {
+      where: { status: DATABASE_STATUS_TYPE.ACTIVE }
     });
 
     if (!question) {
       return res.status(404).json({ message: 'Question not found' });
     }
 
-    // Get all questions in the same context (grouped or ungrouped within same title)
-    const whereClause = question.groupId
-      ? { groupId: question.groupId, titleId: question.titleId, status: DATABASE_STATUS_TYPE.ACTIVE }
-      : { titleId: question.titleId, groupId: null, status: DATABASE_STATUS_TYPE.ACTIVE };
+    // Handle case where current sequence is null
+    if (question.sequenceNo === null) {
+      const whereClause = {
+        status: DATABASE_STATUS_TYPE.ACTIVE,
+        ...(question.groupId ? { titleId: question.titleId, groupId: question.groupId } : { titleId: question.titleId, groupId: null })
+      };
 
-    const questions = await db.questions.findAll({
-      where: whereClause,
-      order: [['sequenceNo', 'ASC']]
-    });
+      // Check if any question already has the target sequence
+      const existingQuestion = await db.questions.findOne({
+        where: {
+          ...whereClause,
+          sequenceNo: value.newSequence
+        }
+      });
 
-    // Validate new sequence number
-    if (value.newSequence < 1 || value.newSequence > questions.length) {
-      return res.status(400).json({ message: 'Invalid sequence number' });
+      await db.sequelize.transaction(async (t) => {
+        if (existingQuestion) {
+          // Shift up all sequences >= new sequence
+          await db.questions.increment('sequenceNo', {
+            where: {
+              ...whereClause,
+              sequenceNo: { [Op.gte]: value.newSequence }
+            },
+            transaction: t
+          });
+        }
+
+        // Update the sequence of the target question
+        await question.update({
+          sequenceNo: value.newSequence,
+          updatedBy: userId
+        }, { transaction: t });
+      });
+
+      return res.status(200).json({
+        message: 'Question sequence updated successfully'
+      });
     }
 
+    // Regular sequence update logic for non-null sequences
     await db.sequelize.transaction(async (t) => {
       const oldSequence = question.sequenceNo;
+      const whereClause = {
+        status: DATABASE_STATUS_TYPE.ACTIVE,
+        ...(question.groupId ? { groupId: question.groupId } : { titleId: question.titleId, groupId: null })
+      };
 
       if (value.newSequence < oldSequence) {
         // Moving up: increment sequence of questions between new and old position
@@ -1644,10 +1670,11 @@ const updateQuestionSequence = async (req, res) => {
       }, { transaction: t });
     });
 
-    res.json({
+    res.status(200).json({
       message: 'Question sequence updated successfully'
     });
   } catch (error) {
+    console.error('Error in updateQuestionSequence:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -1667,14 +1694,14 @@ const getAnswerHistory = async (req, res) => {
       JOIN answers a ON ah."answerId" = a.id
       WHERE a."questionId" IN (:questionIds) AND a."userId" = :userId
     `;
-    
+
     const maxVersionResult = await db.sequelize.query(maxVersionQuery, {
       replacements: { questionIds: value.questionIds, userId },
       type: db.sequelize.QueryTypes.SELECT
     });
 
     const maxVersion = maxVersionResult[0]?.max_version || 0;
-    
+
     // Get version-wise history
     const historyQuery = `
       WITH version_data AS (
