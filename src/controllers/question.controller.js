@@ -444,24 +444,24 @@ const getUserAnswers = async (req, res) => {
                 'questionText', uq."questionText",
                 'questionType', uq."questionType",
                 'isRequired', uq."isRequired",
-                'answerId', uq."answerId",
-                'answer', uq."answer",
-                'options', (
-                          SELECT COALESCE(
-                              JSONB_AGG(
-                                  JSONB_BUILD_OBJECT(
-                                      'option_id', o.id,
-                                      'optionText', o."optionText"
-                                  )
-                                  ORDER BY o.id
-                              ) FILTER (WHERE o.id IS NOT NULL), '[]'::JSONB
-                          )
-                          FROM options o
-                          WHERE o."questionId" = uq."questionId" AND o.status = ${DATABASE_STATUS_TYPE.ACTIVE}
-                      )
+            'answerId', uq."answerId",
+            'answer', uq."answer",
+            'options', (
+                SELECT COALESCE(
+                    JSONB_AGG(
+                        JSONB_BUILD_OBJECT(
+                            'option_id', o.id,
+                            'optionText', o."optionText"
+                        ) ORDER BY o.id
+                    ) FILTER (WHERE o.id IS NOT NULL), '[]'::JSONB
+                )
+                FROM options o
+                WHERE o."questionId" = uq."questionId" 
+                AND o.status = ${DATABASE_STATUS_TYPE.ACTIVE}
             )
-        ) FILTER (WHERE uq."groupId" IS NULL), '[]'::JSONB
-    ) AS ungrouped_questions
+            ) 
+        ) FILTER (WHERE uq."questionId" IS NOT NULL AND uq."groupId" IS NULL), '[]'::JSONB
+        ) AS ungrouped_questions
     FROM titles t
     LEFT JOIN question_groups g ON g."titleId" = t.id
     LEFT JOIN (
