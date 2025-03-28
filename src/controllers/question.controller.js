@@ -409,7 +409,7 @@ const getUserAnswers = async (req, res) => {
                                         q."questionText", q."questionType", q."isRequired",
                                         a.id AS "answerId",
                                         CASE
-                                            WHEN q."questionType" = 'text' THEN TO_JSONB(a."answerText")
+                                            WHEN q."questionType" IN ('text', 'llm') THEN TO_JSONB(COALESCE(NULLIF(a."answerText", ''), NULL))
                                             WHEN q."questionType" IN ('radio', 'select', 'checkbox') THEN TO_JSONB(COALESCE(a."selectedOptionIds", '{}'::integer[]))
                                         END AS "answer",
                                         COALESCE(
@@ -427,28 +427,41 @@ const getUserAnswers = async (req, res) => {
                                     WHERE q."titleId" = :titleId AND q."status"=${DATABASE_STATUS_TYPE.ACTIVE}
                                     ORDER BY q.id
                                 ) AS uq
-            WHERE uq."groupId" = g.id AND g."status"=${DATABASE_STATUS_TYPE.ACTIVE}
-            ORDER BY uq."questionId"
-        ) AS q_obj
-    ),
-    '[]'::jsonb
-)
+                                WHERE uq."groupId" = g.id AND g."status"=${DATABASE_STATUS_TYPE.ACTIVE}
+                                ORDER BY uq."questionId"
+                              ) AS q_obj
+                        ),
+                      '[]'::jsonb
+                    )
                 )
             ) FILTER (WHERE g.id IS NOT NULL AND g.status=${DATABASE_STATUS_TYPE.ACTIVE}), '[]'::JSONB
         ) AS grouped_questions,
+      
         COALESCE(
-            JSONB_AGG(
-                DISTINCT JSONB_BUILD_OBJECT(
-                    'questionId', uq."questionId",
-                    'questionText', uq."questionText",
-                    'questionType', uq."questionType",
-                    'isRequired', uq."isRequired",
-                    'answerId', uq."answerId",
-                    'answer', uq."answer",
-                    'options', uq."options"
-                )
-            ) FILTER (WHERE uq."groupId" IS NULL), '[]'::JSONB
-        ) AS ungrouped_questions
+        JSONB_AGG(
+            DISTINCT JSONB_BUILD_OBJECT(
+                'questionId', uq."questionId",
+                'questionText', uq."questionText",
+                'questionType', uq."questionType",
+                'isRequired', uq."isRequired",
+                'answerId', uq."answerId",
+                'answer', uq."answer",
+                'options', (
+                          SELECT COALESCE(
+                              JSONB_AGG(
+                                  JSONB_BUILD_OBJECT(
+                                      'option_id', o.id,
+                                      'optionText', o."optionText"
+                                  )
+                                  ORDER BY o.id
+                              ) FILTER (WHERE o.id IS NOT NULL), '[]'::JSONB
+                          )
+                          FROM options o
+                          WHERE o."questionId" = uq."questionId" AND o.status = ${DATABASE_STATUS_TYPE.ACTIVE}
+                      )
+            )
+        ) FILTER (WHERE uq."groupId" IS NULL), '[]'::JSONB
+    ) AS ungrouped_questions
     FROM titles t
     LEFT JOIN question_groups g ON g."titleId" = t.id
     LEFT JOIN (
@@ -457,7 +470,7 @@ const getUserAnswers = async (req, res) => {
             q."questionText", q."questionType", q."isRequired",
             a.id AS "answerId",
             CASE
-                WHEN q."questionType" = 'text' THEN TO_JSONB(a."answerText")
+                WHEN q."questionType" = 'text' THEN TO_JSONB(COALESCE(NULLIF(a."answerText", ''), NULL))
                 WHEN q."questionType" IN ('radio', 'select', 'checkbox') THEN TO_JSONB(COALESCE(a."selectedOptionIds", '{}'::integer[]))
             END AS "answer",
             (SELECT JSONB_AGG(
@@ -490,6 +503,7 @@ const getUserAnswers = async (req, res) => {
     });
 
   } catch (error) {
+    console.log(error)
     return res.status(500).json({ message: error.message });
   }
 };
