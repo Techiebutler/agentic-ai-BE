@@ -396,39 +396,45 @@ const getUserAnswers = async (req, res) => {
                 DISTINCT JSONB_BUILD_OBJECT(
                     'id', g.id,
                     'name', g.name,
-                    'questions', (
-                        SELECT JSONB_AGG(q_obj ORDER BY q_obj."questionId")
-                        FROM (
-                            SELECT uq."questionId",
-                                uq."questionText", uq."questionType", uq."isRequired",
-                                uq."answerId", uq."answer", uq."options"
+                    'questions', COALESCE(
+                        (
+                            SELECT JSONB_AGG(q_obj ORDER BY q_obj."questionId")
                             FROM (
-                                SELECT DISTINCT ON (q.id, q."questionText", q."questionType", q."isRequired", a.id, a."answerText", a."selectedOptionIds")
-                                    q.id AS "questionId", q."groupId", q."titleId",
-                                    q."questionText", q."questionType", q."isRequired",
-                                    a.id AS "answerId",
-                                    CASE
-                                        WHEN q."questionType" = 'text' THEN TO_JSONB(a."answerText")
-                                        WHEN q."questionType" IN ('radio', 'select', 'checkbox') THEN TO_JSONB(COALESCE(a."selectedOptionIds", '{}'::integer[]))
-                                    END AS "answer",
-                                    (SELECT JSONB_AGG(
-                                        JSONB_BUILD_OBJECT(
-                                            'id', o.id,
-                                            'optionText', o."optionText",
-                                            'isSelected', o.id = ANY(COALESCE(a."selectedOptionIds", '{}'::integer[]))
-                                        ) ORDER BY o.id
-                                    ) FROM options o WHERE o."questionId" = q.id AND o."status"=${DATABASE_STATUS_TYPE.ACTIVE}) AS "options"
-                                FROM questions q
-                                LEFT JOIN answers a ON a."questionId" = q.id AND a."userId" = :userId
-                                WHERE q."titleId" = :titleId AND q."status"=${DATABASE_STATUS_TYPE.ACTIVE}
-                                ORDER BY q.id
-                            ) AS uq
-                            WHERE uq."groupId" = g.id
-                            ORDER BY uq."questionId"
-                        ) AS q_obj
-                    )
+                                SELECT uq."questionId",
+                                    uq."questionText", uq."questionType", uq."isRequired",
+                                    uq."answerId", uq."answer", uq."options"
+                                FROM (
+                                    SELECT DISTINCT ON (q.id, q."questionText", q."questionType", q."isRequired", a.id, a."answerText", a."selectedOptionIds")
+                                        q.id AS "questionId", q."groupId", q."titleId",
+                                        q."questionText", q."questionType", q."isRequired",
+                                        a.id AS "answerId",
+                                        CASE
+                                            WHEN q."questionType" = 'text' THEN TO_JSONB(a."answerText")
+                                            WHEN q."questionType" IN ('radio', 'select', 'checkbox') THEN TO_JSONB(COALESCE(a."selectedOptionIds", '{}'::integer[]))
+                                        END AS "answer",
+                                        COALESCE(
+                                            (SELECT JSONB_AGG(
+                                                JSONB_BUILD_OBJECT(
+                                                    'id', o.id,
+                                                    'optionText', o."optionText",
+                                                    'isSelected', o.id = ANY(COALESCE(a."selectedOptionIds", '{}'::integer[]))
+                                                ) ORDER BY o.id
+                                            ) FROM options o WHERE o."questionId" = q.id AND o."status"=${DATABASE_STATUS_TYPE.ACTIVE}),
+                                            '[]'::jsonb
+                                        ) AS "options"
+                                    FROM questions q
+                                    LEFT JOIN answers a ON a."questionId" = q.id AND a."userId" = :userId
+                                    WHERE q."titleId" = :titleId AND q."status"=${DATABASE_STATUS_TYPE.ACTIVE}
+                                    ORDER BY q.id
+                                ) AS uq
+            WHERE uq."groupId" = g.id AND g."status"=${DATABASE_STATUS_TYPE.ACTIVE}
+            ORDER BY uq."questionId"
+        ) AS q_obj
+    ),
+    '[]'::jsonb
+)
                 )
-            ) FILTER (WHERE g.id IS NOT NULL), '[]'::JSONB
+            ) FILTER (WHERE g.id IS NOT NULL AND g.status=${DATABASE_STATUS_TYPE.ACTIVE}), '[]'::JSONB
         ) AS grouped_questions,
         COALESCE(
             JSONB_AGG(
@@ -945,7 +951,7 @@ const saveLlmHistory = async (req, res) => {
 
     // Validate question exists and is LLM type
     const question = await db.questions.findOne({
-      where: { id: questionId,status:DATABASE_STATUS_TYPE.ACTIVE }
+      where: { id: questionId, status: DATABASE_STATUS_TYPE.ACTIVE }
     });
     if (!question) {
       return res.status(404).json({ message: 'Question not found' });
@@ -1215,7 +1221,7 @@ const updateQuestionGroup = async (req, res) => {
       return res.status(400).json({ message: error.details[0].message });
     }
 
-    const group = await db.questionGroups.findByPk(groupId,{
+    const group = await db.questionGroups.findByPk(groupId, {
       where: { status: DATABASE_STATUS_TYPE.ACTIVE }
     });
     if (!group) {
@@ -1371,7 +1377,7 @@ const regenerateAnswers = async (req, res) => {
     // Get latest versions for each answer
     const latestVersions = await Promise.all(existingAnswers.map(async (answer) => {
       const latestHistory = await db.answerHistories.findOne({
-        where: { answerId: answer.id,status:DATABASE_STATUS_TYPE.ACTIVE },
+        where: { answerId: answer.id, status: DATABASE_STATUS_TYPE.ACTIVE },
         order: [['version', 'DESC']],
         attributes: ['version']
       });
@@ -1452,7 +1458,7 @@ const submitBulkAnswers = async (req, res) => {
       where: {
         id: { [Op.in]: questionIds },
         ...(group_id && { groupId: group_id }),
-        status:DATABASE_STATUS_TYPE.ACTIVE
+        status: DATABASE_STATUS_TYPE.ACTIVE
       }
     });
 
