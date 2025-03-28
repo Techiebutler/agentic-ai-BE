@@ -39,6 +39,10 @@ module.exports = (sequelize, Sequelize) => {
       defaultValue: 1,
       allowNull: false
     },
+    sequenceNo: {
+      type: Sequelize.INTEGER,
+      allowNull: true
+    },
     createdBy: {
       type: Sequelize.INTEGER,
       allowNull: false

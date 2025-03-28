@@ -17,7 +17,8 @@ const {
   updateTitleSchema,
   updateQuestionGroupSchema,
   deleteQuestionGroupSchema,
-  getQuestionDetailsSchema
+  getQuestionDetailsSchema,
+  updateQuestionSequenceSchema
 } = require('../validations/question.validation');
 const { getPagination, getPagingData } = require('../utils/pagination');
 const { Op } = require('sequelize');
@@ -86,7 +87,8 @@ const createQuestion = async (req, res) => {
       return res.status(400).json({ message: error.details[0].message });
     }
 
-    // Validate title or group exists
+    // Validate title or group exists and get max sequence
+    let maxSequence = 0;
     if (value.titleId) {
       const findTitle = await db.titles.findOne({
         where: {
@@ -97,7 +99,18 @@ const createQuestion = async (req, res) => {
       if (!findTitle) {
         return res.status(404).json({ message: 'Title not found' });
       }
-    } else {
+      // Get max sequence for ungrouped questions in this title
+      const maxSeqResult = await db.questions.findOne({
+        where: {
+          titleId: value.titleId,
+          groupId: null,
+          status: DATABASE_STATUS_TYPE.ACTIVE
+        },
+        order: [['sequenceNo', 'DESC']],
+        attributes: ['sequenceNo']
+      });
+      maxSequence = maxSeqResult ? maxSeqResult.sequenceNo : 0;
+    } else if (value.groupId) {
       const findGroup = await db.questionGroups.findOne({
         where: {
           id: value.groupId,
@@ -107,16 +120,28 @@ const createQuestion = async (req, res) => {
       if (!findGroup) {
         return res.status(404).json({ message: 'Question group not found' });
       }
+      // Get max sequence for questions in this group
+      const maxSeqResult = await db.questions.findOne({
+        where: {
+          titleId: value.titleId,
+          groupId: value.groupId,
+          status: DATABASE_STATUS_TYPE.ACTIVE
+        },
+        order: [['sequenceNo', 'DESC']],
+        attributes: ['sequenceNo']
+      });
+      maxSequence = maxSeqResult ? maxSeqResult.sequenceNo : 0;
     }
 
     const question = await db.sequelize.transaction(async (t) => {
-      // Create question
+      // Create question with next sequence number
       const newQuestion = await db.questions.create({
         titleId: value.titleId,
         groupId: value.groupId,
         questionText: value.questionText,
         questionType: value.questionType,
         isRequired: value.isRequired,
+        sequenceNo: maxSequence + 1,
         createdBy: userId
       }, { transaction: t });
 
@@ -154,7 +179,7 @@ const getQuestionsByTitle = async (req, res) => {
   try {
     const titleId = req.params.titleId;
 
-    const title = await db.titles.findByPk(titleId, {
+    const title = await db.titles.findOne({
       where: {
         id: titleId,
         status: DATABASE_STATUS_TYPE.ACTIVE
@@ -195,7 +220,7 @@ const getQuestionsByTitle = async (req, res) => {
                                           WHERE o."questionId" = q.id AND o.status = ${DATABASE_STATUS_TYPE.ACTIVE}
                                       )
                                   )
-                                  ORDER BY q.id
+                                  ORDER BY q."sequenceNo"
                               ) FILTER (WHERE q.id IS NOT NULL), '[]'::JSONB
                           )
                           FROM questions q
@@ -210,7 +235,8 @@ const getQuestionsByTitle = async (req, res) => {
                       'questionId', uq.id,
                       'questionText', uq."questionText",
                       'questionType', uq."questionType",
-                      'isRequired', uq."isRequired",  
+                      'isRequired', uq."isRequired", 
+                      'sequenceNo', uq."sequenceNo",
                       'options', (
                           SELECT COALESCE(
                               JSONB_AGG(
@@ -229,7 +255,7 @@ const getQuestionsByTitle = async (req, res) => {
           ) AS ungrouped_questions
       FROM titles t
       LEFT JOIN question_groups g ON g."titleId" = t.id
-      LEFT JOIN questions uq ON uq."titleId" = t.id AND uq."groupId" IS NULL  
+      LEFT JOIN questions uq ON uq."titleId" = t.id AND uq."groupId" IS NULL 
       WHERE t.id = :titleId AND t.status = ${DATABASE_STATUS_TYPE.ACTIVE}
       GROUP BY t.id, t.name
   `, {
@@ -237,6 +263,9 @@ const getQuestionsByTitle = async (req, res) => {
       type: db.sequelize.QueryTypes.SELECT
     });
 
+    if (result.length > 0 && result[0].ungrouped_questions) {
+      result[0].ungrouped_questions = result[0].ungrouped_questions.sort((a, b) => a.sequenceNo - b.sequenceNo);
+    }
 
     res.json({
       result,
@@ -409,7 +438,7 @@ const getUserAnswers = async (req, res) => {
                                         q."questionText", q."questionType", q."isRequired",
                                         a.id AS "answerId",
                                         CASE
-                                            WHEN q."questionType" IN ('text', 'llm') THEN TO_JSONB(COALESCE(NULLIF(a."answerText", ''), NULL))
+                                            WHEN q."questionType" = 'text' THEN TO_JSONB(COALESCE(NULLIF(a."answerText", ''), NULL))
                                             WHEN q."questionType" IN ('radio', 'select', 'checkbox') THEN TO_JSONB(COALESCE(a."selectedOptionIds", '{}'::integer[]))
                                         END AS "answer",
                                         COALESCE(
@@ -1542,6 +1571,79 @@ const submitBulkAnswers = async (req, res) => {
   }
 };
 
+const updateQuestionSequence = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { error, value } = updateQuestionSequenceSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({ message: error.details[0].message });
+    }
+
+    // Find the question to be moved
+    const question = await db.questions.findOne({
+      where: {
+        id: value.questionId,
+        status: DATABASE_STATUS_TYPE.ACTIVE
+      }
+    });
+
+    if (!question) {
+      return res.status(404).json({ message: 'Question not found' });
+    }
+
+    // Get all questions in the same context (grouped or ungrouped within same title)
+    const whereClause = question.groupId
+      ? { groupId: question.groupId,titleId: question.titleId, status: DATABASE_STATUS_TYPE.ACTIVE }
+      : { titleId: question.titleId, groupId: null, status: DATABASE_STATUS_TYPE.ACTIVE };
+
+    const questions = await db.questions.findAll({
+      where: whereClause,
+      order: [['sequenceNo', 'ASC']]
+    });
+
+    // Validate new sequence number
+    if (value.newSequence < 1 || value.newSequence > questions.length) {
+      return res.status(400).json({ message: 'Invalid sequence number' });
+    }
+
+    await db.sequelize.transaction(async (t) => {
+      const oldSequence = question.sequenceNo;
+
+      if (value.newSequence < oldSequence) {
+        // Moving up: increment sequence of questions between new and old position
+        await db.questions.increment('sequenceNo', {
+          where: {
+            ...whereClause,
+            sequenceNo: { [Op.gte]: value.newSequence, [Op.lt]: oldSequence }
+          },
+          transaction: t
+        });
+      } else if (value.newSequence > oldSequence) {
+        // Moving down: decrement sequence of questions between old and new position
+        await db.questions.decrement('sequenceNo', {
+          where: {
+            ...whereClause,
+            sequenceNo: { [Op.gt]: oldSequence, [Op.lte]: value.newSequence }
+          },
+          transaction: t
+        });
+      }
+
+      // Update the sequence of the target question
+      await question.update({
+        sequenceNo: value.newSequence,
+        updatedBy: userId
+      }, { transaction: t });
+    });
+
+    res.json({
+      message: 'Question sequence updated successfully'
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   createTitle,
   createQuestionGroup,
@@ -1556,8 +1658,8 @@ module.exports = {
   getAllTitles,
   updateAnswer,
   getProjectAnswers,
-  saveLlmHistory,
   getLlmHistory,
+  saveLlmHistory,
   getAllQuestionGroups,
   updateQuestion,
   updateTitle,
@@ -1566,6 +1668,7 @@ module.exports = {
   updateQuestionGroup,
   deleteQuestionGroup,
   getQuestionDetails,
+  regenerateAnswers,
   submitBulkAnswers,
-  regenerateAnswers
+  updateQuestionSequence
 };

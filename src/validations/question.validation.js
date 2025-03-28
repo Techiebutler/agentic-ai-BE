@@ -325,6 +325,11 @@ const getQuestionDetailsSchema = Joi.object({
     })
 });
 
+const updateQuestionSequenceSchema = Joi.object({
+  questionId: Joi.number().integer().required(),
+  newSequence: Joi.number().integer().min(1).required()
+});
+
 module.exports = {
   createTitleSchema,
   createQuestionGroupSchema,
@@ -344,5 +349,6 @@ module.exports = {
   updateQuestionGroupSchema,
   deleteQuestionGroupSchema,
   getQuestionDetailsSchema,
-  deleteTitleSchema
+  deleteTitleSchema,
+  updateQuestionSequenceSchema
 };

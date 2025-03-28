@@ -273,7 +273,6 @@ const forgotPassword = async (req, res) => {
 const resetPassword = async (req, res) => {
   try {
     const { token, newPassword } = req.body;
-    console.log("token", token);
 
     const decoded = await authService.verifyForgotPasswordToken(token);
     const user = await User.findOne({
