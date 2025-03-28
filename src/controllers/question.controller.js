@@ -431,11 +431,11 @@ const getUserAnswers = async (req, res) => {
                             FROM (
                                 SELECT uq."questionId",
                                     uq."questionText", uq."questionType", uq."isRequired",
-                                    uq."answerId", uq."answer", uq."options"
+                                    uq."answerId", uq."answer", uq."options", uq."sequenceNo"
                                 FROM (
                                     SELECT DISTINCT ON (q.id, q."questionText", q."questionType", q."isRequired", a.id, a."answerText", a."selectedOptionIds")
                                         q.id AS "questionId", q."groupId", q."titleId",
-                                        q."questionText", q."questionType", q."isRequired",
+                                        q."questionText", q."questionType", q."isRequired", q."sequenceNo",
                                         a.id AS "answerId",
                                         CASE
                                             WHEN q."questionType" = 'text' THEN TO_JSONB(COALESCE(NULLIF(a."answerText", ''), NULL))
@@ -458,45 +458,46 @@ const getUserAnswers = async (req, res) => {
                                 ) AS uq
                                 WHERE uq."groupId" = g.id AND g."status"=${DATABASE_STATUS_TYPE.ACTIVE}
                                 ORDER BY uq."questionId"
-                              ) AS q_obj
+                            ) AS q_obj
                         ),
-                      '[]'::jsonb
+                        '[]'::jsonb
                     )
                 )
             ) FILTER (WHERE g.id IS NOT NULL AND g.status=${DATABASE_STATUS_TYPE.ACTIVE}), '[]'::JSONB
         ) AS grouped_questions,
       
         COALESCE(
-        JSONB_AGG(
-            DISTINCT JSONB_BUILD_OBJECT(
-                'questionId', uq."questionId",
-                'questionText', uq."questionText",
-                'questionType', uq."questionType",
-                'isRequired', uq."isRequired",
-            'answerId', uq."answerId",
-            'answer', uq."answer",
-            'options', (
-                SELECT COALESCE(
-                    JSONB_AGG(
-                        JSONB_BUILD_OBJECT(
-                            'option_id', o.id,
-                            'optionText', o."optionText"
-                        ) ORDER BY o.id
-                    ) FILTER (WHERE o.id IS NOT NULL), '[]'::JSONB
-                )
-                FROM options o
-                WHERE o."questionId" = uq."questionId" 
-                AND o.status = ${DATABASE_STATUS_TYPE.ACTIVE}
-            )
-            ) 
-        ) FILTER (WHERE uq."questionId" IS NOT NULL AND uq."groupId" IS NULL), '[]'::JSONB
+            JSONB_AGG(
+                DISTINCT JSONB_BUILD_OBJECT(
+                    'questionId', uq."questionId",
+                    'questionText', uq."questionText",
+                    'questionType', uq."questionType",
+                    'isRequired', uq."isRequired",
+                    'sequenceNo', uq."sequenceNo",
+                    'answerId', uq."answerId",
+                    'answer', uq."answer",
+                    'options', (
+                        SELECT COALESCE(
+                            JSONB_AGG(
+                                JSONB_BUILD_OBJECT(
+                                    'option_id', o.id,
+                                    'optionText', o."optionText"
+                                ) ORDER BY o.id
+                            ) FILTER (WHERE o.id IS NOT NULL), '[]'::JSONB
+                        )
+                        FROM options o
+                        WHERE o."questionId" = uq."questionId" 
+                        AND o.status = ${DATABASE_STATUS_TYPE.ACTIVE}
+                    )
+                ) 
+            ) FILTER (WHERE uq."questionId" IS NOT NULL AND uq."groupId" IS NULL), '[]'::JSONB
         ) AS ungrouped_questions
     FROM titles t
     LEFT JOIN question_groups g ON g."titleId" = t.id
     LEFT JOIN (
         SELECT DISTINCT ON (q.id, q."questionText", q."questionType", q."isRequired", a.id, a."answerText", a."selectedOptionIds")
             q.id AS "questionId", q."groupId", q."titleId",
-            q."questionText", q."questionType", q."isRequired",
+            q."questionText", q."questionType", q."isRequired", q."sequenceNo",
             a.id AS "answerId",
             CASE
                 WHEN q."questionType" = 'text' THEN TO_JSONB(COALESCE(NULLIF(a."answerText", ''), NULL))
@@ -520,11 +521,17 @@ const getUserAnswers = async (req, res) => {
     LIMIT :limit OFFSET :offset;
 `;
 
-
     const result = await db.sequelize.query(rawQuery, {
       replacements: { userId, titleId: req.params.titleId, limit, offset },
       type: db.sequelize.QueryTypes.SELECT
     });
+
+    if (result.length > 0) {
+      result[0].grouped_questions.forEach(group => {
+        group.questions.sort((a, b) => a.sequenceNo - b.sequenceNo);
+      });
+      result[0].ungrouped_questions.sort((a, b) => a.sequenceNo - b.sequenceNo);
+    }
 
     return res.json({
       message: 'User answers retrieved successfully',
@@ -1593,7 +1600,7 @@ const updateQuestionSequence = async (req, res) => {
 
     // Get all questions in the same context (grouped or ungrouped within same title)
     const whereClause = question.groupId
-      ? { groupId: question.groupId,titleId: question.titleId, status: DATABASE_STATUS_TYPE.ACTIVE }
+      ? { groupId: question.groupId, titleId: question.titleId, status: DATABASE_STATUS_TYPE.ACTIVE }
       : { titleId: question.titleId, groupId: null, status: DATABASE_STATUS_TYPE.ACTIVE };
 
     const questions = await db.questions.findAll({
