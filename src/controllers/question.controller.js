@@ -1583,7 +1583,7 @@ const submitBulkAnswers = async (req, res) => {
 const updateQuestionSequence = async (req, res) => {
   try {
     const userId = req.user.id;
-    const questionId = parseInt(req.params.questionId);
+    const questionId = parseInt(req.body.questionId);
     const { error, value } = updateQuestionSequenceSchema.validate(req.body);
     if (error) {
       return res.status(400).json({ message: error.details[0].message });
