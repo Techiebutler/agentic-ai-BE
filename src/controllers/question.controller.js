@@ -154,7 +154,7 @@ const getQuestionsByTitle = async (req, res) => {
   try {
     const titleId = req.params.titleId;
 
-    const title = await db.titles.findOne({
+    const title = await db.titles.findByPk(titleId, {
       where: {
         id: titleId,
         status: DATABASE_STATUS_TYPE.ACTIVE
@@ -202,7 +202,7 @@ const getQuestionsByTitle = async (req, res) => {
                           WHERE q."groupId" = g.id AND q.status = ${DATABASE_STATUS_TYPE.ACTIVE}
                       )
                   )
-              ) FILTER (WHERE g.id IS NOT NULL), '[]'::JSONB
+              ) FILTER (WHERE g.id IS NOT NULL AND g.status=${DATABASE_STATUS_TYPE.ACTIVE}), '[]'::JSONB
           ) AS grouped_questions,
           COALESCE(
               JSONB_AGG(
@@ -225,7 +225,7 @@ const getQuestionsByTitle = async (req, res) => {
                           WHERE o."questionId" = uq.id AND o.status = ${DATABASE_STATUS_TYPE.ACTIVE}
                       )
                   )
-              ) FILTER (WHERE uq.id IS NOT NULL), '[]'::JSONB
+              ) FILTER (WHERE uq.id IS NOT NULL AND uq.status=${DATABASE_STATUS_TYPE.ACTIVE}), '[]'::JSONB
           ) AS ungrouped_questions
       FROM titles t
       LEFT JOIN question_groups g ON g."titleId" = t.id
