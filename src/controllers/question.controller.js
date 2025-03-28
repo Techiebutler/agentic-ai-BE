@@ -207,6 +207,7 @@ const getQuestionsByTitle = async (req, res) => {
                                       'questionText', q."questionText",
                                       'questionType', q."questionType",
                                       'isRequired', q."isRequired",
+                                      'sequenceNo', q."sequenceNo",
                                       'options', (
                                           SELECT COALESCE(
                                               JSONB_AGG(
