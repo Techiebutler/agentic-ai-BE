@@ -1453,7 +1453,7 @@ const regenerateAnswers = async (req, res) => {
         userId,
         entityType: ENTITY_TYPES.QUESTION,
         answerText: answer.answerText,
-        selectedOptionIds: answer.selectedOptionIds,
+        selectedOptionIds: answer.selectedOptionIds ? answer.selectedOptionIds : [],
         systemPrompt: answer.systemPrompt,
         rejectionReason,
         version: versionMap[answer.id],
