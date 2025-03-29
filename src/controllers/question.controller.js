@@ -212,7 +212,7 @@ const getQuestionsByTitle = async (req, res) => {
                                           SELECT COALESCE(
                                               JSONB_AGG(
                                                   JSONB_BUILD_OBJECT(
-                                                      'option_id', o.id,
+                                                      'id', o.id,
                                                       'optionText', o."optionText"
                                                   )
                                                   ORDER BY o.id
@@ -243,7 +243,7 @@ const getQuestionsByTitle = async (req, res) => {
                           SELECT COALESCE(
                               JSONB_AGG(
                                   JSONB_BUILD_OBJECT(
-                                      'option_id', o.id,
+                                      'id', o.id,
                                       'optionText', o."optionText"
                                   )
                                   ORDER BY o.id
@@ -482,7 +482,7 @@ const getUserAnswers = async (req, res) => {
                     SELECT COALESCE(
                         JSONB_AGG(
                             JSONB_BUILD_OBJECT(
-                                'option_id', o.id,
+                                'id', o.id,
                                 'optionText', o."optionText"
                             ) ORDER BY o.id
                         ) FILTER (WHERE o.id IS NOT NULL), '[]'::JSONB
