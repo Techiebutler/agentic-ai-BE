@@ -1453,7 +1453,7 @@ const regenerateAnswers = async (req, res) => {
         userId,
         entityType: ENTITY_TYPES.QUESTION,
         answerText: answer.answerText,
-        selectedOptionIds: answer.selectedOptionIds ? answer.selectedOptionIds : [],
+        selectedOptionIds: answer.selectedOptionIds.length > 0 ? answer.selectedOptionIds : [],
         systemPrompt: answer.systemPrompt,
         rejectionReason,
         version: versionMap[answer.id],
@@ -1552,7 +1552,7 @@ const submitBulkAnswers = async (req, res) => {
           userId,
           projectId,
           answerText: item.answerText,
-          selectedOptionIds: item.selectedOptionIds,
+          selectedOptionIds: item.selectedOptionIds.length > 0 ? item.selectedOptionIds : [],
           status: DATABASE_STATUS_TYPE.ACTIVE,
           createdBy: userId
         });
